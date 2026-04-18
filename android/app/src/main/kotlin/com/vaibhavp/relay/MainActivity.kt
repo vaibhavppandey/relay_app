@@ -1,4 +1,4 @@
-package com.example.relay_app
+package com.vaibhavp.relay
 
 import io.flutter.embedding.android.FlutterActivity
 
