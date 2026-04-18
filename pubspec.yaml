@@ -20,6 +20,8 @@ dependencies:
   bloc: ^9.2.0
   meta: ^1.17.0
   shared_preferences: ^2.5.5
+  logger: ^2.7.0
+  dio: ^5.9.2
 
 dev_dependencies:
   flutter_test:
@@ -31,3 +33,5 @@ dev_dependencies:
 flutter:
 
   uses-material-design: true
+  assets:
+    - .env

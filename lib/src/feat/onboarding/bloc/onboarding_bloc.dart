@@ -1,6 +1,7 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
+import 'package:relay_app/src/core/error/exception.dart';
 import 'package:relay_app/src/core/util/code_generator.dart';
 import 'package:relay_app/src/feat/onboarding/data/repo/onboarding_repo.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

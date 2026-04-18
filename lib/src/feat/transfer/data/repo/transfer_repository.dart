@@ -1,0 +1,3 @@
+class TransferRepository {
+  const TransferRepository();
+}

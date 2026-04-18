@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:logger/logger.dart';
 import 'package:relay_app/src/app/app.dart';
 import 'package:relay_app/src/core/constant/key.dart';
 import 'package:relay_app/src/feat/onboarding/data/repo/onboarding_repo.dart';
+import 'package:relay_app/src/feat/transfer/data/repo/transfer_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -16,11 +18,19 @@ void main() async {
     anonKey: dotenv.env[KeyConstants.supabaseAnonKey] ?? '',
   );
   final supabase = Supabase.instance.client;
+  final logger = Logger();
   runApp(
-    MultiBlocProvider(
+    MultiRepositoryProvider(
       providers: [
         RepositoryProvider<OnboardingRepository>(
-          create: (_) => OnboardingRepository(supabase: supabase, prefs: prefs),
+          create: (context) => OnboardingRepository(
+            supabase: supabase,
+            prefs: prefs,
+            logger: logger,
+          ),
+        ),
+        RepositoryProvider<TransferRepository>(
+          create: (context) => TransferRepository(),
         ),
       ],
       child: const RelayApp(),
