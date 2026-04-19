@@ -3,8 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:relay_app/src/feat/transfer/bloc/transfer_bloc.dart';
 
-class ProgressView extends StatelessWidget {
-  const ProgressView({super.key});
+class ProgressIndicatorWidget extends StatelessWidget {
+  const ProgressIndicatorWidget({super.key});
 
   @override
   Widget build(BuildContext ctx) {

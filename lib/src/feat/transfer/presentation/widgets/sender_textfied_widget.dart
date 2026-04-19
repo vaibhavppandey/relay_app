@@ -6,14 +6,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:relay_app/src/feat/transfer/bloc/transfer_bloc.dart';
 
-class SenderView extends StatefulWidget {
-  const SenderView({super.key});
+class SenderTextFieldWidget extends StatefulWidget {
+  const SenderTextFieldWidget({super.key});
 
   @override
-  State<SenderView> createState() => _SenderViewState();
+  State<SenderTextFieldWidget> createState() => _SenderTextFieldWidgetState();
 }
 
-class _SenderViewState extends State<SenderView> {
+class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
   final _txt = TextEditingController();
 
   @override

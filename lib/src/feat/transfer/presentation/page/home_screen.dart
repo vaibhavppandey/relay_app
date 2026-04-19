@@ -3,9 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:relay_app/src/feat/onboarding/bloc/onboarding_bloc.dart';
 import 'package:relay_app/src/feat/transfer/bloc/transfer_bloc.dart';
-import 'package:relay_app/src/feat/transfer/presentation/widgets/incoming_view.dart';
-import 'package:relay_app/src/feat/transfer/presentation/widgets/progress_view.dart';
-import 'package:relay_app/src/feat/transfer/presentation/widgets/sender_view.dart';
+import 'package:relay_app/src/feat/transfer/presentation/widgets/incoming_files_widget.dart';
+import 'package:relay_app/src/feat/transfer/presentation/widgets/progress_indicator_widget.dart';
+import 'package:relay_app/src/feat/transfer/presentation/widgets/sender_textfied_widget.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -60,13 +60,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 12.verticalSpace,
-                const SenderView(),
+                const SenderTextFieldWidget(),
                 12.verticalSpace,
                 Text('Incoming', style: Theme.of(ctx).textTheme.titleMedium),
                 8.verticalSpace,
-                const IncomingView(),
+                const IncomingFilesWidget(),
                 12.verticalSpace,
-                const ProgressView(),
+                const ProgressIndicatorWidget(),
               ],
             ),
           ),

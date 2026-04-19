@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:relay_app/pigeons/generated/media_saver.g.dart';
 import 'package:relay_app/src/core/error/exception.dart';
 import 'package:relay_app/src/feat/transfer/data/model/transfer_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,6 +21,7 @@ class TransferRepository {
   final SupabaseClient _supabase;
   final Dio _dio;
   final Uuid _uuid;
+  final MediaSaverApi _native = MediaSaverApi();
   final Set<String> _done = {};
 
   Future<void> send(
@@ -182,6 +184,22 @@ class TransferRepository {
         onReceiveProgress: onProgress,
       );
 
+      final mimeType = _mimeFromName(transfer.fileName);
+      final saved = await _native.saveFile(
+        savePath,
+        transfer.fileName,
+        mimeType,
+      );
+      if (!saved) {
+        throw const DownloadFailedException(
+          'Could not save file to Downloads folder.',
+        );
+      }
+
+      if (await File(savePath).exists()) {
+        await File(savePath).delete();
+      }
+
       _done.add(transfer.id);
 
       await _supabase
@@ -191,5 +209,28 @@ class TransferRepository {
     } catch (error) {
       throw DownloadFailedException(error.toString());
     }
+  }
+
+  String _mimeFromName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
+    if (lower.endsWith('.png')) {
+      return 'image/png';
+    }
+    if (lower.endsWith('.gif')) {
+      return 'image/gif';
+    }
+    if (lower.endsWith('.webp')) {
+      return 'image/webp';
+    }
+    if (lower.endsWith('.mp4')) {
+      return 'video/mp4';
+    }
+    if (lower.endsWith('.mov')) {
+      return 'video/quicktime';
+    }
+    return 'application/octet-stream';
   }
 }

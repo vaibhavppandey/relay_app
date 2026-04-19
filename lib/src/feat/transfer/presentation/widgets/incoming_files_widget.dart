@@ -3,8 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:relay_app/src/feat/transfer/bloc/transfer_bloc.dart';
 
-class IncomingView extends StatelessWidget {
-  const IncomingView({super.key});
+class IncomingFilesWidget extends StatelessWidget {
+  const IncomingFilesWidget({super.key});
 
   @override
   Widget build(BuildContext ctx) {
