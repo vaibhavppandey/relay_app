@@ -89,6 +89,7 @@ class MediaSaverPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol MediaSaverApi {
   func saveFile(path: String, name: String, mime: String, completion: @escaping (Result<Bool, Error>) -> Void)
+  func shareFile(path: String, mime: String, completion: @escaping (Result<Void, Error>) -> Void)
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -115,6 +116,24 @@ class MediaSaverApiSetup {
       }
     } else {
       saveFileChannel.setMessageHandler(nil)
+    }
+    let shareFileChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.relay_app.MediaSaverApi.shareFile\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      shareFileChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let pathArg = args[0] as! String
+        let mimeArg = args[1] as! String
+        api.shareFile(path: pathArg, mime: mimeArg) { result in
+          switch result {
+          case .success:
+            reply(wrapResult(nil))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      shareFileChannel.setMessageHandler(nil)
     }
   }
 }

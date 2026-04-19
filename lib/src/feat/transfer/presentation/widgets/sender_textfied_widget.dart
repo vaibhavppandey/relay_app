@@ -4,7 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:relay_app/src/feat/transfer/bloc/transfer_bloc.dart';
+import 'package:relay_app/src/feat/transfer/bloc/transfer/transfer_bloc.dart';
 
 class SenderTextFieldWidget extends StatefulWidget {
   const SenderTextFieldWidget({super.key});
@@ -48,6 +48,9 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
             final res = await FilePicker.platform.pickFiles(
               allowMultiple: true,
             );
+            if (!ctx.mounted) {
+              return;
+            }
             if (res == null) {
               return;
             }
@@ -64,6 +67,9 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
               return;
             }
 
+            if (!ctx.mounted) {
+              return;
+            }
             ctx.read<TransferBloc>().add(
               SendRequested(files: files, rCode: code),
             );

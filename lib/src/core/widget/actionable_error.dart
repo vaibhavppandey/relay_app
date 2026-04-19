@@ -14,6 +14,7 @@ class ActionableErrorWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
 
     return Center(
       child: Padding(
@@ -21,7 +22,7 @@ class ActionableErrorWidget extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, color: Colors.red, size: 48.r),
+            Icon(Icons.error_outline, color: scheme.error, size: 48.r),
             12.verticalSpace,
             Text(
               errorMessage,

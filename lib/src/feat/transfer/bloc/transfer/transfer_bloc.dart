@@ -19,7 +19,6 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
       super(TransferInitial()) {
     on<SendRequested>(_onSendRequested);
     on<DownloadRequested>(_onDownloadRequested);
-    on<IncomingListened>(_onIncomingListened);
     on<ProgressUpdated>(_onProgressUpdated);
     on<TransferCancelled>(_onTransferCancelled);
     on<TransferReset>(_onTransferReset);
@@ -86,17 +85,6 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
         _cancelToken = null;
       }
     }
-  }
-
-  Future<void> _onIncomingListened(
-    IncomingListened event,
-    Emitter<TransferState> emit,
-  ) async {
-    await emit.forEach<List<TransferData>>(
-      _transferRepository.listenIncoming(event.myCode),
-      onData: (list) => TransferIncoming(list),
-      onError: (err, _) => TransferFailure(err.toString()),
-    );
   }
 
   void _onProgressUpdated(ProgressUpdated event, Emitter<TransferState> emit) {

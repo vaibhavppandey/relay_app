@@ -26,15 +26,6 @@ final class DownloadRequested extends TransferEvent {
   List<Object> get props => [t.id];
 }
 
-final class IncomingListened extends TransferEvent {
-  const IncomingListened({required this.myCode});
-
-  final String myCode;
-
-  @override
-  List<Object> get props => [myCode];
-}
-
 final class TransferCancelled extends TransferEvent {
   const TransferCancelled();
 }

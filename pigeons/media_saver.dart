@@ -13,4 +13,7 @@ import 'package:pigeon/pigeon.dart';
 abstract class MediaSaverApi {
   @async
   bool saveFile(String path, String name, String mime);
+
+  @async
+  void shareFile(String path, String mime);
 }

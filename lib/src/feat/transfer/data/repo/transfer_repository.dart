@@ -152,7 +152,7 @@ class TransferRepository {
                   Map<String, dynamic>.from(record as Map),
                 ),
               )
-              .where((transfer) => !_done.contains(transfer.id))
+              .where((t) => t.status == 'completed' || t.status == 'downloaded')
               .toList(),
         );
   }
@@ -196,15 +196,13 @@ class TransferRepository {
         );
       }
 
-      if (await File(savePath).exists()) {
-        await File(savePath).delete();
-      }
-
       _done.add(transfer.id);
+
+      await _supabase.storage.from('media').remove([transfer.storagePath]);
 
       await _supabase
           .from('transfers')
-          .update({'status': 'completed', 'progress_bytes': transfer.fileSize})
+          .update({'status': 'downloaded', 'progress_bytes': transfer.fileSize})
           .eq('id', transfer.id);
     } catch (error) {
       throw DownloadFailedException(error.toString());

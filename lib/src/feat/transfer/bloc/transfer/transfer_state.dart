@@ -21,15 +21,6 @@ final class TransferInProgress extends TransferState {
   List<Object> get props => [pct, isDownload];
 }
 
-final class TransferIncoming extends TransferState {
-  const TransferIncoming(this.list);
-
-  final List<TransferData> list;
-
-  @override
-  List<Object> get props => [list];
-}
-
 final class TransferSuccess extends TransferState {}
 
 final class TransferFailure extends TransferState {

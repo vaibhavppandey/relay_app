@@ -1,8 +1,10 @@
 package com.vaibhavp.relay
 
 import android.content.ContentValues
+import android.content.Intent
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import java.io.File
@@ -54,6 +56,37 @@ class MainActivity : FlutterActivity(), MediaSaverApi {
 			callback(Result.success(true))
 		} catch (_: Exception) {
 			callback(Result.success(false))
+		}
+	}
+
+	override fun shareFile(
+		path: String,
+		mime: String,
+		callback: (Result<Unit>) -> Unit,
+	) {
+		try {
+			val src = File(path)
+			if (!src.exists()) {
+				callback(Result.failure(FlutterError("share_missing_file", "File not found", path)))
+				return
+			}
+
+			val uri = FileProvider.getUriForFile(
+				this,
+				"$packageName.fileprovider",
+				src,
+			)
+
+			val req = Intent(Intent.ACTION_SEND).apply {
+				type = mime
+				putExtra(Intent.EXTRA_STREAM, uri)
+				addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+			}
+
+			startActivity(Intent.createChooser(req, "Share File"))
+			callback(Result.success(Unit))
+		} catch (e: Exception) {
+			callback(Result.failure(FlutterError("share_failed", e.message, null)))
 		}
 	}
 }

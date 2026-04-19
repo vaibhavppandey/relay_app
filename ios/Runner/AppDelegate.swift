@@ -32,6 +32,28 @@ final class MediaSaverHandler: NSObject, MediaSaverApi {
       }
     }
   }
+
+  func shareFile(
+    path: String,
+    mime: String,
+    completion: @escaping (Result<Void, Error>) -> Void
+  ) {
+    let url = URL(fileURLWithPath: path)
+    DispatchQueue.main.async {
+      let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+      guard let root = UIApplication.shared.connectedScenes
+        .compactMap({ $0 as? UIWindowScene })
+        .flatMap({ $0.windows })
+        .first(where: { $0.isKeyWindow })?.rootViewController else {
+        completion(.success(()))
+        return
+      }
+
+      vc.popoverPresentationController?.sourceView = root.view
+      root.present(vc, animated: true)
+      completion(.success(()))
+    }
+  }
 }
 
 @main
