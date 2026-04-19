@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -8,6 +9,7 @@ import 'package:relay_app/src/feat/onboarding/data/repo/onboarding_repo.dart';
 import 'package:relay_app/src/feat/transfer/data/repo/transfer_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +32,8 @@ void main() async {
           ),
         ),
         RepositoryProvider<TransferRepository>(
-          create: (context) => TransferRepository(),
+          create: (context) =>
+              TransferRepository(supabase: supabase, dio: Dio(), uuid: Uuid()),
         ),
       ],
       child: const RelayApp(),

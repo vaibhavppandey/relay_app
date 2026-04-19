@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:relay_app/src/core/widget/actionable_error.dart';
 import 'package:relay_app/src/feat/onboarding/bloc/onboarding_bloc.dart';
-import 'package:relay_app/src/feat/home/presentation/home_screen.dart';
 import 'package:relay_app/src/feat/onboarding/presentation/widgets/splash_loading.dart';
+import 'package:relay_app/src/feat/transfer/presentation/page/home_screen.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});

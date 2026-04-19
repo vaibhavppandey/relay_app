@@ -14,3 +14,27 @@ class StorageQuotaExceededException implements Exception {
     this.message = 'Relay server is currently at capacity.',
   ]);
 }
+
+class UploadFailedException implements Exception {
+  const UploadFailedException(this.msg);
+  final String msg;
+
+  @override
+  String toString() => msg;
+}
+
+class TransferNotCompletedException implements Exception {
+  const TransferNotCompletedException(this.msg);
+  final String msg;
+
+  @override
+  String toString() => msg;
+}
+
+class DownloadFailedException implements Exception {
+  const DownloadFailedException(this.msg);
+  final String msg;
+
+  @override
+  String toString() => msg;
+}
