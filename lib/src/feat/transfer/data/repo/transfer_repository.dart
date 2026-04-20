@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:relay_app/pigeons/generated/media_saver.g.dart';
 import 'package:relay_app/src/core/error/exception.dart';
 import 'package:relay_app/src/core/native/bg_service.dart';
+import 'package:relay_app/src/core/util/mime_type.dart';
 import 'package:relay_app/src/core/util/recovery_queue.dart';
 import 'package:relay_app/src/feat/transfer/data/model/transfer_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,6 +29,8 @@ class TransferRepository {
   final BgServiceManager _bg;
   final MediaSaverApi _native = MediaSaverApi();
   final Set<String> _done = {};
+  static const Duration _retryPollInterval = Duration(seconds: 2);
+  static const Duration _internetCheckTimeout = Duration(seconds: 2);
 
   Future<void> send(
     File file,
@@ -37,8 +40,6 @@ class TransferRepository {
   }) async {
     final fileSize = await file.length();
     final fileName = file.path.split('/').last;
-    _bg.startTransfer(fileName);
-    await RecoveryQueue.addTransfer(file.path, recipientCode);
     String? transferId;
 
     try {
@@ -46,11 +47,17 @@ class TransferRepository {
         throw const UploadFailedException('File exceeds 50MB limit.');
       }
 
-      final recipientUser = await _supabase
-          .from('users')
-          .select('id')
-          .eq('short_code', recipientCode)
-          .maybeSingle();
+      _bg.startTransfer(fileName);
+      await RecoveryQueue.addTransfer(file.path, recipientCode);
+
+      final recipientUser = await _withNetworkRetry(
+        () => _supabase
+            .from('users')
+            .select('id')
+            .eq('short_code', recipientCode)
+            .maybeSingle(),
+        cancelToken: cancelToken,
+      );
 
       if (recipientUser == null) {
         throw const UploadFailedException('Invalid recipient code.');
@@ -68,72 +75,88 @@ class TransferRepository {
       final storagePath = '$senderId/$transferId/$fileName';
       final expiresAt = DateTime.now().toUtc().add(const Duration(days: 1));
 
-      await _supabase.from('transfers').insert({
-        'id': transferId,
-        'sender_id': senderId,
-        'recipient_id': recipientId,
-        'storage_bucket_path': storagePath,
-        'file_name': fileName,
-        'file_size': fileSize,
-        'status': 'pending',
-        'progress_bytes': 0,
-        'expires_at': expiresAt.toIso8601String(),
-      });
-
-      await _supabase
-          .from('transfers')
-          .update({'status': 'transferring'})
-          .eq('id', transferId);
-
-      final uploadUrl = await _supabase.storage
-          .from('media')
-          .createSignedUploadUrl(storagePath);
-      var lastProgressPercent = -1;
-
-      await _dio.put(
-        uploadUrl.signedUrl,
-        data: file.openRead(),
+      await _withNetworkRetry(
+        () => _supabase.from('transfers').insert({
+          'id': transferId,
+          'sender_id': senderId,
+          'recipient_id': recipientId,
+          'storage_bucket_path': storagePath,
+          'file_name': fileName,
+          'file_size': fileSize,
+          'status': 'pending',
+          'progress_bytes': 0,
+          'expires_at': expiresAt.toIso8601String(),
+        }),
         cancelToken: cancelToken,
-        options: Options(
-          headers: {
-            'content-type': 'application/octet-stream',
-            'content-length': fileSize.toString(),
-          },
-          responseType: ResponseType.plain,
-        ),
-        onSendProgress: (sentBytes, totalBytes) {
-          if (totalBytes > 0 && onProgress != null) {
-            onProgress(sentBytes / totalBytes);
-          }
-          if (totalBytes <= 0) return;
-
-          final progressPercent = ((sentBytes / totalBytes) * 100).floor();
-          if (progressPercent == lastProgressPercent ||
-              (progressPercent - lastProgressPercent) < 5 &&
-                  sentBytes != totalBytes) {
-            return;
-          }
-
-          lastProgressPercent = progressPercent;
-          unawaited(
-            _supabase
-                .from('transfers')
-                .update({'progress_bytes': sentBytes})
-                .eq('id', transferId!),
-          );
-        },
       );
 
-      await _supabase
-          .from('transfers')
-          .update({'status': 'completed', 'progress_bytes': fileSize})
-          .eq('id', transferId);
+      await _withNetworkRetry(
+        () => _supabase
+            .from('transfers')
+            .update({'status': 'transferring'})
+            .eq('id', transferId!),
+        cancelToken: cancelToken,
+      );
+
+      var lastProgressPercent = -1;
+
+      await _withNetworkRetry(() async {
+        final uploadUrl = await _supabase.storage
+            .from('media')
+            .createSignedUploadUrl(storagePath);
+        await _dio.put(
+          uploadUrl.signedUrl,
+          data: file.openRead(),
+          cancelToken: cancelToken,
+          options: Options(
+            headers: {
+              'content-type': 'application/octet-stream',
+              'content-length': fileSize.toString(),
+            },
+            responseType: ResponseType.plain,
+          ),
+          onSendProgress: (sentBytes, totalBytes) {
+            if (totalBytes > 0 && onProgress != null) {
+              onProgress(sentBytes / totalBytes);
+            }
+            if (totalBytes <= 0) return;
+
+            final progressPercent = ((sentBytes / totalBytes) * 100).floor();
+            if (progressPercent == lastProgressPercent ||
+                (progressPercent - lastProgressPercent) < 5 &&
+                    sentBytes != totalBytes) {
+              return;
+            }
+
+            lastProgressPercent = progressPercent;
+            unawaited(
+              _supabase
+                  .from('transfers')
+                  .update({'progress_bytes': sentBytes})
+                  .eq('id', transferId!)
+                  .catchError((_) {}),
+            );
+          },
+        );
+      }, cancelToken: cancelToken);
+
+      await _withNetworkRetry(
+        () => _supabase
+            .from('transfers')
+            .update({'status': 'completed', 'progress_bytes': fileSize})
+            .eq('id', transferId!),
+        cancelToken: cancelToken,
+      );
 
       await RecoveryQueue.removeTransfer(file.path);
       _bg.stopTransfer();
     } catch (error) {
       _bg.stopTransfer();
-      if (transferId != null) {
+      if (_isCancelledError(error)) {
+        rethrow;
+      }
+
+      if (transferId != null && !_isRetryableNetworkError(error)) {
         try {
           await _supabase
               .from('transfers')
@@ -144,6 +167,87 @@ class TransferRepository {
 
       throw UploadFailedException(error.toString());
     }
+  }
+
+  Future<T> _withNetworkRetry<T>(
+    Future<T> Function() action, {
+    CancelToken? cancelToken,
+  }) async {
+    while (true) {
+      _throwIfCancelled(cancelToken);
+      try {
+        return await action();
+      } catch (error) {
+        if (_isCancelledError(error)) {
+          rethrow;
+        }
+        if (!_isRetryableNetworkError(error)) {
+          rethrow;
+        }
+
+        await _waitForInternet(cancelToken: cancelToken);
+      }
+    }
+  }
+
+  Future<void> _waitForInternet({CancelToken? cancelToken}) async {
+    while (true) {
+      _throwIfCancelled(cancelToken);
+      final isOnline = await _hasInternet();
+      if (isOnline) {
+        return;
+      }
+      await Future<void>.delayed(_retryPollInterval);
+    }
+  }
+
+  Future<bool> _hasInternet() async {
+    try {
+      final result = await InternetAddress.lookup(
+        'one.one.one.one',
+      ).timeout(_internetCheckTimeout);
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _throwIfCancelled(CancelToken? cancelToken) {
+    if (cancelToken?.isCancelled ?? false) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/transfers/upload'),
+        type: DioExceptionType.cancel,
+        error: 'Cancelled by user',
+      );
+    }
+  }
+
+  bool _isCancelledError(Object error) {
+    return error is DioException &&
+        (error.type == DioExceptionType.cancel || CancelToken.isCancel(error));
+  }
+
+  bool _isRetryableNetworkError(Object error) {
+    if (error is SocketException) {
+      return true;
+    }
+
+    if (error is DioException) {
+      return error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.sendTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.connectionError ||
+          error.type == DioExceptionType.unknown;
+    }
+
+    final text = error.toString().toLowerCase();
+    return text.contains('socketexception') ||
+        text.contains('failed host lookup') ||
+        text.contains('network') ||
+        text.contains('connection reset') ||
+        text.contains('connection refused') ||
+        text.contains('timed out') ||
+        text.contains('timeout');
   }
 
   Future<void> cleanupStaleTransfers() async {
@@ -237,7 +341,7 @@ class TransferRepository {
         },
       );
 
-      final mimeType = _mimeFromName(transfer.fileName);
+      final mimeType = inferMimeType(transfer.fileName);
       final saved = await _native.saveFile(
         savePath,
         transfer.fileName,
@@ -260,28 +364,5 @@ class TransferRepository {
     } catch (error) {
       throw DownloadFailedException(error.toString());
     }
-  }
-
-  String _mimeFromName(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-      return 'image/jpeg';
-    }
-    if (lower.endsWith('.png')) {
-      return 'image/png';
-    }
-    if (lower.endsWith('.gif')) {
-      return 'image/gif';
-    }
-    if (lower.endsWith('.webp')) {
-      return 'image/webp';
-    }
-    if (lower.endsWith('.mp4')) {
-      return 'video/mp4';
-    }
-    if (lower.endsWith('.mov')) {
-      return 'video/quicktime';
-    }
-    return 'application/octet-stream';
   }
 }
