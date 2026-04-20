@@ -11,15 +11,15 @@ import 'package:relay_app/src/feat/transfer/bloc/incoming/incoming_bloc.dart';
 class DownloadedFilesWidget extends StatelessWidget {
   const DownloadedFilesWidget({super.key});
 
-  Future<void> _share(BuildContext ctx, String fileName) async {
+  Future<void> _share(BuildContext context, String fileName) async {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final path = '${dir.path}/$fileName';
       final ok = await File(path).exists();
-      if (!ctx.mounted) return;
+      if (!context.mounted) return;
       if (!ok) {
         ScaffoldMessenger.of(
-          ctx,
+          context,
         ).showSnackBar(const SnackBar(content: Text('Local file not found.')));
         return;
       }
@@ -27,17 +27,24 @@ class DownloadedFilesWidget extends StatelessWidget {
       final mime = inferMimeType(fileName);
       await MediaSaverApi().shareFile(path, mime);
     } catch (_) {
-      if (!ctx.mounted) return;
-      ScaffoldMessenger.of(ctx).showSnackBar(
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Unable to open share sheet.')),
       );
     }
   }
 
   @override
-  Widget build(BuildContext ctx) {
+  Widget build(BuildContext context) {
     return BlocBuilder<IncomingBloc, IncomingState>(
-      builder: (ctx, state) {
+      builder: (context, state) {
+        if (state is IncomingInitial || state is IncomingLoading) {
+          return Padding(
+            padding: EdgeInsets.symmetric(vertical: 12.h),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
         if (state is! IncomingLoaded && state is! IncomingFailure) {
           return const SizedBox.shrink();
         }
@@ -47,18 +54,18 @@ class DownloadedFilesWidget extends StatelessWidget {
             : (state as IncomingFailure).lst;
         final lst = all.where((t) => t.status == 'downloaded').toList();
         if (lst.isEmpty) {
-          return const SizedBox.shrink();
+          return _emptyState(context, 'No downloaded files available yet.');
         }
 
         return Expanded(
           child: ListView.builder(
             itemCount: lst.length,
-            itemBuilder: (ctx, i) {
+            itemBuilder: (context, i) {
               final t = lst[i];
               return ListTile(
                 title: Text(t.fileName),
                 trailing: IconButton(
-                  onPressed: () => _share(ctx, t.fileName),
+                  onPressed: () => _share(context, t.fileName),
                   icon: Icon(Icons.share, size: 20.r),
                 ),
               );
@@ -66,6 +73,19 @@ class DownloadedFilesWidget extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _emptyState(BuildContext context, String message) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 12.h),
+      child: Text(
+        message,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+      ),
     );
   }
 }

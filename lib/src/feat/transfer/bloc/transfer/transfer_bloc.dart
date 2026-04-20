@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
+import 'package:relay_app/src/core/util/user_friendly_error.dart';
 import 'package:relay_app/src/feat/transfer/data/model/transfer_model.dart';
 import 'package:relay_app/src/feat/transfer/data/repo/transfer_repository.dart';
 
@@ -46,7 +47,7 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
                 CancelToken.isCancel(err))) {
           return;
         }
-        emit(TransferFailure(err.toString()));
+        emit(TransferFailure(userFriendlyErrorMessage(err)));
       } finally {
         if (identical(_cancelToken, cancelToken)) {
           _cancelToken = null;
@@ -79,7 +80,7 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
           (err.type == DioExceptionType.cancel || CancelToken.isCancel(err))) {
         return;
       }
-      emit(TransferFailure(err.toString()));
+      emit(TransferFailure(userFriendlyErrorMessage(err)));
     } finally {
       if (identical(_cancelToken, cancelToken)) {
         _cancelToken = null;

@@ -9,6 +9,8 @@ sealed class IncomingState extends Equatable {
 
 final class IncomingInitial extends IncomingState {}
 
+final class IncomingLoading extends IncomingState {}
+
 final class IncomingLoaded extends IncomingState {
   const IncomingLoaded(this.lst);
 

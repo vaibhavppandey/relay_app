@@ -42,35 +42,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext ctx) {
-    final scheme = Theme.of(ctx).colorScheme;
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Relay')),
       body: MultiBlocListener(
         listeners: [
           BlocListener<IncomingBloc, IncomingState>(
-            listener: (ctx, state) {
+            listener: (context, state) {
               if (state is IncomingFailure) {
                 ScaffoldMessenger.of(
-                  ctx,
+                  context,
                 ).showSnackBar(SnackBar(content: Text(state.msg)));
               }
             },
           ),
           BlocListener<TransferBloc, TransferState>(
-            listener: (ctx, state) {
+            listener: (context, state) {
               if (state is TransferFailure) {
                 ScaffoldMessenger.of(
-                  ctx,
+                  context,
                 ).showSnackBar(SnackBar(content: Text(state.msg)));
               }
 
               if (state is TransferSuccess) {
                 ScaffoldMessenger.of(
-                  ctx,
+                  context,
                 ).showSnackBar(const SnackBar(content: Text('Success')));
-                ctx.read<TransferBloc>().add(const TransferReset());
+                context.read<TransferBloc>().add(const TransferReset());
               }
             },
           ),
@@ -92,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     child: Text(
                       'Your code: $_myCode',
-                      style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: scheme.onSecondaryContainer,
                       ),
                     ),
@@ -101,11 +101,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 12.verticalSpace,
                 const SenderTextFieldWidget(),
                 12.verticalSpace,
-                Text('Incoming', style: Theme.of(ctx).textTheme.titleMedium),
+                Text(
+                  'Incoming',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 8.verticalSpace,
                 const IncomingFilesWidget(),
                 12.verticalSpace,
-                Text('Downloaded', style: Theme.of(ctx).textTheme.titleMedium),
+                Text(
+                  'Downloaded',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 8.verticalSpace,
                 const DownloadedFilesWidget(),
                 12.verticalSpace,

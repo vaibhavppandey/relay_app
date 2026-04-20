@@ -8,9 +8,16 @@ class IncomingFilesWidget extends StatelessWidget {
   const IncomingFilesWidget({super.key});
 
   @override
-  Widget build(BuildContext ctx) {
+  Widget build(BuildContext context) {
     return BlocBuilder<IncomingBloc, IncomingState>(
-      builder: (ctx, state) {
+      builder: (context, state) {
+        if (state is IncomingInitial || state is IncomingLoading) {
+          return Padding(
+            padding: EdgeInsets.symmetric(vertical: 12.h),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
         if (state is! IncomingLoaded && state is! IncomingFailure) {
           return const SizedBox.shrink();
         }
@@ -20,19 +27,21 @@ class IncomingFilesWidget extends StatelessWidget {
             : (state as IncomingFailure).lst;
         final lst = all.where((t) => t.status == 'completed').toList();
         if (lst.isEmpty) {
-          return const SizedBox.shrink();
+          return _emptyState(context, 'No incoming files available yet.');
         }
 
         return Expanded(
           child: ListView.builder(
             itemCount: lst.length,
-            itemBuilder: (ctx, i) {
+            itemBuilder: (context, i) {
               final item = lst[i];
               return ListTile(
                 title: Text(item.fileName),
                 trailing: IconButton(
                   onPressed: () {
-                    ctx.read<TransferBloc>().add(DownloadRequested(t: item));
+                    context.read<TransferBloc>().add(
+                      DownloadRequested(t: item),
+                    );
                   },
                   icon: Icon(Icons.download, size: 20.r),
                 ),
@@ -41,6 +50,19 @@ class IncomingFilesWidget extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _emptyState(BuildContext context, String message) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 12.h),
+      child: Text(
+        message,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+      ),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:relay_app/pigeons/generated/media_saver.g.dart';
 import 'package:relay_app/src/core/error/exception.dart';
+import 'package:relay_app/src/core/native/bg_service.dart';
 import 'package:relay_app/src/feat/transfer/data/model/transfer_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -14,13 +15,16 @@ class TransferRepository {
     required SupabaseClient supabase,
     required Dio dio,
     required Uuid uuid,
+    required BgServiceManager bg,
   }) : _supabase = supabase,
        _dio = dio,
-       _uuid = uuid;
+       _uuid = uuid,
+       _bg = bg;
 
   final SupabaseClient _supabase;
   final Dio _dio;
   final Uuid _uuid;
+  final BgServiceManager _bg;
   final MediaSaverApi _native = MediaSaverApi();
   final Set<String> _done = {};
 
@@ -30,34 +34,37 @@ class TransferRepository {
     CancelToken? cancelToken,
   }) async {
     final fileSize = await file.length();
-
-    if (fileSize > 52428800) {
-      throw const UploadFailedException('File exceeds 50MB limit.');
-    }
-
-    final recipientUser = await _supabase
-        .from('users')
-        .select('id')
-        .eq('short_code', recipientCode)
-        .maybeSingle();
-
-    if (recipientUser == null) {
-      throw const UploadFailedException('Invalid recipient code.');
-    }
-
-    final recipientId = recipientUser['id'] as String;
-
-    final senderId = _supabase.auth.currentUser!.id;
-    if (recipientId == senderId) {
-      throw const UploadFailedException('Cannot send files to your own code.');
-    }
-
-    final transferId = _uuid.v4();
     final fileName = file.path.split('/').last;
-    final storagePath = '$senderId/$transferId/$fileName';
-    final expiresAt = DateTime.now().toUtc().add(const Duration(days: 1));
+    _bg.startTransfer(fileName);
+    String? transferId;
 
     try {
+      if (fileSize > 52428800) {
+        throw const UploadFailedException('File exceeds 50MB limit.');
+      }
+
+      final recipientUser = await _supabase
+          .from('users')
+          .select('id')
+          .eq('short_code', recipientCode)
+          .maybeSingle();
+
+      if (recipientUser == null) {
+        throw const UploadFailedException('Invalid recipient code.');
+      }
+
+      final recipientId = recipientUser['id'] as String;
+      final senderId = _supabase.auth.currentUser!.id;
+      if (recipientId == senderId) {
+        throw const UploadFailedException(
+          'Cannot send files to your own code.',
+        );
+      }
+
+      transferId = _uuid.v4();
+      final storagePath = '$senderId/$transferId/$fileName';
+      final expiresAt = DateTime.now().toUtc().add(const Duration(days: 1));
+
       await _supabase.from('transfers').insert({
         'id': transferId,
         'sender_id': senderId,
@@ -106,7 +113,7 @@ class TransferRepository {
             _supabase
                 .from('transfers')
                 .update({'progress_bytes': sentBytes})
-                .eq('id', transferId),
+                .eq('id', transferId!),
           );
         },
       );
@@ -115,13 +122,18 @@ class TransferRepository {
           .from('transfers')
           .update({'status': 'completed', 'progress_bytes': fileSize})
           .eq('id', transferId);
+
+      _bg.stopTransfer();
     } catch (error) {
-      try {
-        await _supabase
-            .from('transfers')
-            .update({'status': 'failed'})
-            .eq('id', transferId);
-      } catch (_) {}
+      _bg.stopTransfer();
+      if (transferId != null) {
+        try {
+          await _supabase
+              .from('transfers')
+              .update({'status': 'failed'})
+              .eq('id', transferId);
+        } catch (_) {}
+      }
 
       throw UploadFailedException(error.toString());
     }

@@ -14,21 +14,21 @@ class SenderTextFieldWidget extends StatefulWidget {
 }
 
 class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
-  final _txt = TextEditingController();
+  final textFieldController = TextEditingController();
 
   @override
   void dispose() {
-    _txt.dispose();
+    textFieldController.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext ctx) {
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
-          controller: _txt,
+          controller: textFieldController,
           decoration: const InputDecoration(
             labelText: 'Recipient code',
             border: OutlineInputBorder(),
@@ -37,9 +37,9 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
         8.verticalSpace,
         ElevatedButton(
           onPressed: () async {
-            final code = _txt.text.trim();
+            final code = textFieldController.text.trim();
             if (code.isEmpty) {
-              ScaffoldMessenger.of(ctx).showSnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Enter recipient code.')),
               );
               return;
@@ -48,7 +48,7 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
             final res = await FilePicker.platform.pickFiles(
               allowMultiple: true,
             );
-            if (!ctx.mounted) {
+            if (!context.mounted) {
               return;
             }
             if (res == null) {
@@ -61,16 +61,16 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
                 .toList();
 
             if (files.isEmpty) {
-              ScaffoldMessenger.of(ctx).showSnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('No files selected.')),
               );
               return;
             }
 
-            if (!ctx.mounted) {
+            if (!context.mounted) {
               return;
             }
-            ctx.read<TransferBloc>().add(
+            context.read<TransferBloc>().add(
               SendRequested(files: files, rCode: code),
             );
           },

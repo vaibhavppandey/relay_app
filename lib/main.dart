@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logger/logger.dart';
 import 'package:relay_app/src/app/app.dart';
 import 'package:relay_app/src/core/constant/key.dart';
+import 'package:relay_app/src/core/native/bg_service.dart';
 import 'package:relay_app/src/feat/onboarding/data/repo/onboarding_repo.dart';
 import 'package:relay_app/src/feat/transfer/data/repo/transfer_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +14,8 @@ import 'package:uuid/uuid.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final bgServiceManager = BgServiceManager();
+  await bgServiceManager.init();
   await dotenv.load(fileName: KeyConstants.env);
   final prefs = await SharedPreferences.getInstance();
   await Supabase.initialize(
@@ -32,8 +35,12 @@ void main() async {
           ),
         ),
         RepositoryProvider<TransferRepository>(
-          create: (context) =>
-              TransferRepository(supabase: supabase, dio: Dio(), uuid: Uuid()),
+          create: (context) => TransferRepository(
+            supabase: supabase,
+            dio: Dio(),
+            uuid: Uuid(),
+            bg: bgServiceManager,
+          ),
         ),
       ],
       child: const RelayApp(),

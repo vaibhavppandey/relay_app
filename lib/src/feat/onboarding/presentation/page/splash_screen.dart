@@ -12,14 +12,14 @@ class SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: BlocConsumer<OnboardingBloc, OnboardingState>(
-        listener: (ctx, state) {
+        listener: (context, state) {
           if (state is OnboardingSuccess) {
-            Navigator.of(ctx).pushReplacement(
+            Navigator.of(context).pushReplacement(
               MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
             );
           }
         },
-        builder: (ctx, state) {
+        builder: (context, state) {
           if (state is OnboardingLoading || state is OnboardingInitial) {
             return const SplashLoadingWidget();
           }
@@ -28,7 +28,7 @@ class SplashScreen extends StatelessWidget {
             return ActionableErrorWidget(
               errorMessage: state.errorMessage,
               onRetry: () {
-                ctx.read<OnboardingBloc>().add(
+                context.read<OnboardingBloc>().add(
                   const ProvisionIdentityRequested(),
                 );
               },

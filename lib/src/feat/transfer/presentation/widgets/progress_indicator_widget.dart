@@ -7,9 +7,9 @@ class ProgressIndicatorWidget extends StatelessWidget {
   const ProgressIndicatorWidget({super.key});
 
   @override
-  Widget build(BuildContext ctx) {
+  Widget build(BuildContext context) {
     return BlocBuilder<TransferBloc, TransferState>(
-      builder: (ctx, state) {
+      builder: (context, state) {
         if (state is TransferLoading) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -26,7 +26,7 @@ class ProgressIndicatorWidget extends StatelessWidget {
               8.verticalSpace,
               ElevatedButton(
                 onPressed: () {
-                  ctx.read<TransferBloc>().add(const TransferCancelled());
+                  context.read<TransferBloc>().add(const TransferCancelled());
                 },
                 child: const Text('Cancel'),
               ),
