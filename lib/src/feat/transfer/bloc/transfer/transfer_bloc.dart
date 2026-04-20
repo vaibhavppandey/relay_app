@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bloc/bloc.dart';
@@ -14,7 +15,7 @@ part 'transfer_state.dart';
 class TransferBloc extends Bloc<TransferEvent, TransferState> {
   final TransferRepository _transferRepository;
   CancelToken? _cancelToken;
-  var _isDownloadTransfer = false;
+  String? _activeDownloadId;
 
   TransferBloc({required TransferRepository repository})
     : _transferRepository = repository,
@@ -22,7 +23,6 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
     on<SendRequested>(_onSendRequested);
     on<RecoveryRequested>(_onRecoveryRequested);
     on<DownloadRequested>(_onDownloadRequested);
-    on<ProgressUpdated>(_onProgressUpdated);
     on<TransferCancelled>(_onTransferCancelled);
     on<TransferReset>(_onTransferReset);
   }
@@ -34,6 +34,17 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
     await _transferRepository.cleanupStaleTransfers();
     final list = await RecoveryQueue.getPendingTransfers();
     if (list.isEmpty) {
+      final pendingDownloads = await RecoveryQueue.getPendingDownloads();
+      for (final id in pendingDownloads) {
+        final t = await _transferRepository.getTransferById(id);
+        if (t == null || t.status == 'downloaded') {
+          await RecoveryQueue.removeDownload(id);
+          continue;
+        }
+        if (t.status == 'completed') {
+          add(DownloadRequested(t: t));
+        }
+      }
       return;
     }
 
@@ -51,16 +62,27 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
         await RecoveryQueue.removeTransfer(path);
       }
     }
+
+    final pendingDownloads = await RecoveryQueue.getPendingDownloads();
+    for (final id in pendingDownloads) {
+      final t = await _transferRepository.getTransferById(id);
+      if (t == null || t.status == 'downloaded') {
+        await RecoveryQueue.removeDownload(id);
+        continue;
+      }
+      if (t.status == 'completed') {
+        add(DownloadRequested(t: t));
+      }
+    }
   }
 
   Future<void> _onSendRequested(
     SendRequested event,
     Emitter<TransferState> emit,
   ) async {
-    emit(TransferLoading());
-    _isDownloadTransfer = false;
     var hasError = false;
     for (final file in event.files) {
+      emit(TransferLoading(isDownload: false, activeId: file.path));
       final cancelToken = CancelToken();
       _cancelToken = cancelToken;
 
@@ -69,6 +91,13 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
           file,
           event.rCode,
           cancelToken: cancelToken,
+          onProgress: (val) => emit(
+            TransferInProgress(
+              pct: val,
+              isDownload: false,
+              activeId: file.path,
+            ),
+          ),
         );
       } catch (err) {
         if (err is DioException &&
@@ -95,8 +124,9 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
     DownloadRequested event,
     Emitter<TransferState> emit,
   ) async {
-    emit(TransferLoading());
-    _isDownloadTransfer = true;
+    _activeDownloadId = event.t.id;
+    await RecoveryQueue.addDownload(event.t.id);
+    emit(TransferLoading(isDownload: true, activeId: event.t.id));
     final cancelToken = CancelToken();
     _cancelToken = cancelToken;
 
@@ -104,15 +134,19 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
       await _transferRepository.download(
         event.t,
         cancelToken: cancelToken,
-        onProgress: (receivedBytes, totalBytes) =>
-            add(ProgressUpdated(receivedBytes, totalBytes)),
+        onProgress: (val) => emit(
+          TransferInProgress(pct: val, isDownload: true, activeId: event.t.id),
+        ),
       );
+      await RecoveryQueue.removeDownload(event.t.id);
+      _activeDownloadId = null;
       emit(TransferSuccess());
     } catch (err) {
       if (err is DioException &&
           (err.type == DioExceptionType.cancel || CancelToken.isCancel(err))) {
         return;
       }
+      _activeDownloadId = null;
       emit(TransferFailure(userFriendlyErrorMessage(err)));
     } finally {
       if (identical(_cancelToken, cancelToken)) {
@@ -121,26 +155,24 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
     }
   }
 
-  void _onProgressUpdated(ProgressUpdated event, Emitter<TransferState> emit) {
-    if (event.total <= 0) {
-      return;
-    }
-    final pct = (event.current / event.total).clamp(0.0, 1.0).toDouble();
-    emit(TransferInProgress(pct: pct, isDownload: _isDownloadTransfer));
-  }
-
   void _onTransferCancelled(
     TransferCancelled event,
     Emitter<TransferState> emit,
   ) {
     _cancelToken?.cancel('Cancelled by user');
     _cancelToken = null;
+    final id = _activeDownloadId;
+    if (id != null) {
+      unawaited(RecoveryQueue.removeDownload(id));
+      _activeDownloadId = null;
+    }
     emit(TransferFailure('Transfer cancelled.'));
   }
 
   void _onTransferReset(TransferReset event, Emitter<TransferState> emit) {
     _cancelToken?.cancel();
     _cancelToken = null;
+    _activeDownloadId = null;
     emit(TransferInitial());
   }
 }

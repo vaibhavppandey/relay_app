@@ -6,6 +6,7 @@ import 'package:logger/logger.dart';
 import 'package:relay_app/src/app/app.dart';
 import 'package:relay_app/src/core/constant/key.dart';
 import 'package:relay_app/src/core/native/bg_service.dart';
+import 'package:relay_app/src/feat/nearby/data/repo/nearby_repository.dart';
 import 'package:relay_app/src/feat/onboarding/data/repo/onboarding_repo.dart';
 import 'package:relay_app/src/feat/transfer/data/repo/transfer_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,6 +34,9 @@ void main() async {
             prefs: prefs,
             logger: logger,
           ),
+        ),
+        RepositoryProvider<NearbyRepository>(
+          create: (context) => NearbyRepository(),
         ),
         RepositoryProvider<TransferRepository>(
           create: (context) => TransferRepository(

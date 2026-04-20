@@ -20,8 +20,14 @@ class SplashScreen extends StatelessWidget {
           }
         },
         builder: (context, state) {
-          if (state is OnboardingLoading || state is OnboardingInitial) {
-            return const SplashLoadingWidget();
+          if (state is OnboardingLoading) {
+            return SplashLoadingWidget(message: state.message);
+          }
+
+          if (state is OnboardingInitial) {
+            return const SplashLoadingWidget(
+              message: 'Provisioning secure identity...',
+            );
           }
 
           if (state is OnboardingFailure) {
@@ -35,7 +41,9 @@ class SplashScreen extends StatelessWidget {
             );
           }
 
-          return const SplashLoadingWidget();
+          return const SplashLoadingWidget(
+            message: 'Provisioning secure identity...',
+          );
         },
       ),
     );

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class SplashLoadingWidget extends StatelessWidget {
-  const SplashLoadingWidget({super.key});
+  const SplashLoadingWidget({super.key, required this.message});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +16,7 @@ class SplashLoadingWidget extends StatelessWidget {
         children: [
           const CircularProgressIndicator(),
           12.verticalSpace,
-          Text('Provisioning secure identity...', style: textTheme.bodyMedium),
+          Text(message, style: textTheme.bodyMedium),
         ],
       ),
     );

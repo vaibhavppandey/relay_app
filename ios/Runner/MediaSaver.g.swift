@@ -90,6 +90,7 @@ class MediaSaverPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
 protocol MediaSaverApi {
   func saveFile(path: String, name: String, mime: String, completion: @escaping (Result<Bool, Error>) -> Void)
   func shareFile(path: String, mime: String, completion: @escaping (Result<Void, Error>) -> Void)
+  func pickFiles(allowMultiple: Bool, completion: @escaping (Result<[String], Error>) -> Void)
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -134,6 +135,23 @@ class MediaSaverApiSetup {
       }
     } else {
       shareFileChannel.setMessageHandler(nil)
+    }
+    let pickFilesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.relay_app.MediaSaverApi.pickFiles\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      pickFilesChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let allowMultipleArg = args[0] as! Bool
+        api.pickFiles(allowMultiple: allowMultipleArg) { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      pickFilesChannel.setMessageHandler(nil)
     }
   }
 }

@@ -4,80 +4,81 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:relay_app/src/feat/transfer/bloc/incoming/incoming_bloc.dart';
 import 'package:relay_app/src/feat/transfer/bloc/transfer/transfer_bloc.dart';
 
-class IncomingFilesWidget extends StatefulWidget {
+class IncomingFilesWidget extends StatelessWidget {
   const IncomingFilesWidget({super.key});
 
   @override
-  State<IncomingFilesWidget> createState() => _IncomingFilesWidgetState();
-}
-
-class _IncomingFilesWidgetState extends State<IncomingFilesWidget> {
-  String? _activeDownloadId;
-
-  @override
   Widget build(BuildContext context) {
-    return BlocListener<TransferBloc, TransferState>(
-      listener: (context, state) {
-        if (state is TransferSuccess ||
-            state is TransferFailure ||
-            state is TransferInitial) {
-          if (_activeDownloadId != null) {
-            setState(() {
-              _activeDownloadId = null;
-            });
-          }
-        }
-      },
-      child: BlocBuilder<IncomingBloc, IncomingState>(
-        builder: (context, state) {
-          if (state is IncomingInitial || state is IncomingLoading) {
-            return Padding(
-              padding: EdgeInsets.symmetric(vertical: 12.h),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          if (state is! IncomingLoaded && state is! IncomingFailure) {
-            return const SizedBox.shrink();
-          }
-
-          final all = state is IncomingLoaded
-              ? state.lst
-              : (state as IncomingFailure).lst;
-          final lst = all.where((t) => t.status == 'completed').toList();
-          if (lst.isEmpty) {
-            return _emptyState(context, 'No incoming files available yet.');
-          }
-
-          return ListView.builder(
-            itemCount: lst.length,
-            itemBuilder: (context, i) {
-              final item = lst[i];
-              final isLoading = _activeDownloadId == item.id;
-              return ListTile(
-                title: Text(item.fileName),
-                trailing: isLoading
-                    ? SizedBox(
-                        width: 20.r,
-                        height: 20.r,
-                        child: const CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _activeDownloadId = item.id;
-                          });
-                          context.read<TransferBloc>().add(
-                            DownloadRequested(t: item),
-                          );
-                        },
-                        icon: Icon(Icons.download, size: 20.r),
-                      ),
-              );
-            },
+    return BlocBuilder<IncomingBloc, IncomingState>(
+      builder: (context, state) {
+        if (state is IncomingInitial || state is IncomingLoading) {
+          return Padding(
+            padding: EdgeInsets.symmetric(vertical: 12.h),
+            child: Center(child: CircularProgressIndicator()),
           );
-        },
-      ),
+        }
+
+        if (state is! IncomingLoaded && state is! IncomingFailure) {
+          return const SizedBox.shrink();
+        }
+
+        final all = state is IncomingLoaded
+            ? state.lst
+            : (state as IncomingFailure).lst;
+        final lst = all
+            .where((t) => t.status == 'transferring' || t.status == 'completed')
+            .toList();
+        if (lst.isEmpty) {
+          return _emptyState(context, 'No incoming files available yet.');
+        }
+
+        return ListView.builder(
+          itemCount: lst.length,
+          itemBuilder: (context, i) {
+            final item = lst[i];
+            return BlocBuilder<TransferBloc, TransferState>(
+              builder: (ctx, tState) {
+                final isTransferring = item.status == 'transferring';
+                final isActiveDl =
+                    tState is TransferInProgress && tState.activeId == item.id;
+
+                Widget subtitle;
+                if (isTransferring) {
+                  subtitle = const LinearProgressIndicator(value: null);
+                } else if (isActiveDl) {
+                  final pct = (tState.pct * 100).toInt();
+                  subtitle = Row(
+                    children: [
+                      Expanded(
+                        child: LinearProgressIndicator(value: tState.pct),
+                      ),
+                      SizedBox(width: 8.w),
+                      Text('$pct%'),
+                    ],
+                  );
+                } else {
+                  subtitle = const Text('Ready to download');
+                }
+
+                return ListTile(
+                  title: Text(item.fileName),
+                  subtitle: subtitle,
+                  trailing: isTransferring || isActiveDl
+                      ? const SizedBox.shrink()
+                      : IconButton(
+                          onPressed: () {
+                            ctx.read<TransferBloc>().add(
+                              DownloadRequested(t: item),
+                            );
+                          },
+                          icon: Icon(Icons.download, size: 20.r),
+                        ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 

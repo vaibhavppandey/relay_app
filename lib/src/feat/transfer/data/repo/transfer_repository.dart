@@ -33,6 +33,7 @@ class TransferRepository {
     File file,
     String recipientCode, {
     CancelToken? cancelToken,
+    void Function(double)? onProgress,
   }) async {
     final fileSize = await file.length();
     final fileName = file.path.split('/').last;
@@ -101,6 +102,9 @@ class TransferRepository {
           responseType: ResponseType.plain,
         ),
         onSendProgress: (sentBytes, totalBytes) {
+          if (totalBytes > 0 && onProgress != null) {
+            onProgress(sentBytes / totalBytes);
+          }
           if (totalBytes <= 0) return;
 
           final progressPercent = ((sentBytes / totalBytes) * 100).floor();
@@ -150,6 +154,22 @@ class TransferRepository {
     );
   }
 
+  Future<TransferData?> getTransferById(String id) async {
+    final rec = await _supabase
+        .from('transfers')
+        .select(
+          'id,sender_id,recipient_id,storage_bucket_path,file_name,file_size,status,progress_bytes',
+        )
+        .eq('id', id)
+        .maybeSingle();
+
+    if (rec == null) {
+      return null;
+    }
+
+    return TransferData.fromJson(Map<String, dynamic>.from(rec as Map));
+  }
+
   Stream<List<TransferData>> listenIncoming(String recipientCode) async* {
     final recipientUser = await _supabase
         .from('users')
@@ -175,7 +195,13 @@ class TransferRepository {
                   Map<String, dynamic>.from(record as Map),
                 ),
               )
-              .where((t) => t.status == 'completed' || t.status == 'downloaded')
+              .where(
+                (t) =>
+                    t.status == 'pending' ||
+                    t.status == 'transferring' ||
+                    t.status == 'completed' ||
+                    t.status == 'downloaded',
+              )
               .toList(),
         );
   }
@@ -183,7 +209,7 @@ class TransferRepository {
   Future<void> download(
     TransferData transfer, {
     CancelToken? cancelToken,
-    void Function(int, int)? onProgress,
+    void Function(double)? onProgress,
   }) async {
     if (_done.contains(transfer.id)) {
       return;
@@ -204,7 +230,11 @@ class TransferRepository {
         signedUrl,
         savePath,
         cancelToken: cancelToken,
-        onReceiveProgress: onProgress,
+        onReceiveProgress: (count, total) {
+          if (total > 0 && onProgress != null) {
+            onProgress(count / total);
+          }
+        },
       );
 
       final mimeType = _mimeFromName(transfer.fileName);

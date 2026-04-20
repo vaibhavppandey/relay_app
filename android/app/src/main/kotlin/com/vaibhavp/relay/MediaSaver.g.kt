@@ -61,6 +61,7 @@ private open class MediaSaverPigeonCodec : StandardMessageCodec() {
 interface MediaSaverApi {
   fun saveFile(path: String, name: String, mime: String, callback: (Result<Boolean>) -> Unit)
   fun shareFile(path: String, mime: String, callback: (Result<Unit>) -> Unit)
+  fun pickFiles(allowMultiple: Boolean, callback: (Result<List<String>>) -> Unit)
 
   companion object {
     /** The codec used by MediaSaverApi. */
@@ -106,6 +107,26 @@ interface MediaSaverApi {
                 reply.reply(MediaSaverPigeonUtils.wrapError(error))
               } else {
                 reply.reply(MediaSaverPigeonUtils.wrapResult(null))
+              }
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.relay_app.MediaSaverApi.pickFiles$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val allowMultipleArg = args[0] as Boolean
+            api.pickFiles(allowMultipleArg) { result: Result<List<String>> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(MediaSaverPigeonUtils.wrapError(error))
+              } else {
+                val data = result.getOrNull()
+                reply.reply(MediaSaverPigeonUtils.wrapResult(data))
               }
             }
           }

@@ -16,4 +16,7 @@ abstract class MediaSaverApi {
 
   @async
   void shareFile(String path, String mime);
+
+  @async
+  List<String> pickFiles(bool allowMultiple);
 }

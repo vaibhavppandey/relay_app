@@ -1,16 +1,23 @@
 package com.vaibhavp.relay
 
+import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
+import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 
 class MainActivity : FlutterActivity(), MediaSaverApi {
+	private val pickRequestCode = 7331
+	private var pickCallback: ((Result<List<String>>) -> Unit)? = null
+
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
 		MediaSaverApi.setUp(flutterEngine.dartExecutor.binaryMessenger, this)
@@ -87,6 +94,102 @@ class MainActivity : FlutterActivity(), MediaSaverApi {
 			callback(Result.success(Unit))
 		} catch (e: Exception) {
 			callback(Result.failure(FlutterError("share_failed", e.message, null)))
+		}
+	}
+
+	override fun pickFiles(allowMultiple: Boolean, callback: (Result<List<String>>) -> Unit) {
+		if (pickCallback != null) {
+			callback(Result.failure(FlutterError("picker_busy", "File picker already open", null)))
+			return
+		}
+
+		pickCallback = callback
+		try {
+			val req = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+				addCategory(Intent.CATEGORY_OPENABLE)
+				type = "*/*"
+				putExtra(Intent.EXTRA_ALLOW_MULTIPLE, allowMultiple)
+			}
+			startActivityForResult(Intent.createChooser(req, "Select Files"), pickRequestCode)
+		} catch (e: Exception) {
+			pickCallback = null
+			callback(Result.failure(FlutterError("picker_failed", e.message, null)))
+		}
+	}
+
+	override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+		super.onActivityResult(requestCode, resultCode, data)
+		if (requestCode != pickRequestCode) {
+			return
+		}
+
+		if (resultCode != Activity.RESULT_OK) {
+			onPickResult(emptyList())
+			return
+		}
+
+		onPickResult(extractUris(data))
+	}
+
+	private fun extractUris(data: Intent?): List<Uri> {
+		if (data == null) {
+			return emptyList()
+		}
+
+		val uris = mutableListOf<Uri>()
+		data.data?.let { uris.add(it) }
+
+		val clip = data.clipData
+		if (clip != null) {
+			for (idx in 0 until clip.itemCount) {
+				clip.getItemAt(idx).uri?.let { uris.add(it) }
+			}
+		}
+
+		return uris.distinct()
+	}
+
+	private fun onPickResult(uris: List<Uri>) {
+		val callback = pickCallback ?: return
+		pickCallback = null
+		val paths = uris.mapNotNull { copyUriToLocalPath(it) }
+		callback(Result.success(paths))
+	}
+
+	private fun copyUriToLocalPath(uri: Uri): String? {
+		val name = queryFileName(uri) ?: "picked_${System.currentTimeMillis()}"
+		val dir = File(filesDir, "picked")
+		if (!dir.exists()) {
+			dir.mkdirs()
+		}
+
+		val dstName = "${System.currentTimeMillis()}_${name.replace('/', '_')}"
+		val dst = File(dir, dstName)
+
+		return try {
+			contentResolver.openInputStream(uri)?.use { input ->
+				FileOutputStream(dst).use { output ->
+					input.copyTo(output)
+				}
+			} ?: return null
+			dst.absolutePath
+		} catch (_: Exception) {
+			null
+		}
+	}
+
+	private fun queryFileName(uri: Uri): String? {
+		return try {
+			contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+				val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+				if (idx == -1 || !cursor.moveToFirst()) {
+					null
+				} else {
+					cursor.getString(idx)
+				}
+			}
+		} catch (_: Exception) {
+			null
 		}
 	}
 }

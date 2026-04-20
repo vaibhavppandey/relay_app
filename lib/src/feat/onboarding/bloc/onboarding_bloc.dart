@@ -23,7 +23,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     AppStarted event,
     Emitter<OnboardingState> emit,
   ) async {
-    emit(OnboardingLoading());
+    emit(const OnboardingLoading(message: 'Checking your local identity...'));
 
     final shortCode = _repository.getLocalShortCode();
     if (shortCode != null) {
@@ -49,12 +49,14 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     ProvisionIdentityRequested event,
     Emitter<OnboardingState> emit,
   ) async {
-    emit(OnboardingLoading());
+    emit(const OnboardingLoading(message: 'Creating secure session...'));
 
     try {
       final userId = await _repository.signInAnonymously();
       var isRegistered = false;
       String generatedCode = '';
+
+      emit(const OnboardingLoading(message: 'Assigning your Relay ID...'));
 
       while (!isRegistered) {
         generatedCode = CodeGenerator.generateShortCode();
@@ -67,6 +69,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
         }
       }
 
+      emit(const OnboardingLoading(message: 'Finalizing setup...'));
       await _repository.saveLocalShortCode(generatedCode);
       emit(OnboardingSuccess(shortCode: generatedCode, userId: userId));
     } on Exception catch (error) {

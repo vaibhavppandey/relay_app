@@ -1,9 +1,7 @@
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:relay_app/src/core/native/native_file_picker.dart';
 import 'package:relay_app/src/feat/transfer/bloc/transfer/transfer_bloc.dart';
 
 class SenderTextFieldWidget extends StatefulWidget {
@@ -16,6 +14,9 @@ class SenderTextFieldWidget extends StatefulWidget {
 class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
   final textFieldController = TextEditingController();
   var isCodeValid = false;
+  var isUp = false;
+  var showDone = false;
+  String? currentFilePath;
 
   @override
   void initState() {
@@ -32,6 +33,11 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final doneStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+      fontSize: 14.sp,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -46,7 +52,8 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
         BlocBuilder<TransferBloc, TransferState>(
           builder: (context, state) {
             final isBusy =
-                state is TransferLoading || state is TransferInProgress;
+                (state is TransferLoading && !state.isDownload) ||
+                (state is TransferInProgress && !state.isDownload);
             final canSend = isCodeValid && !isBusy;
             return ElevatedButton(
               onPressed: !canSend
@@ -64,52 +71,110 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
                         return;
                       }
 
-                      final res = await FilePicker.platform.pickFiles(
+                      final files = await NativeFilePicker.pickFiles(
                         allowMultiple: true,
                       );
                       if (!context.mounted) {
                         return;
                       }
-                      if (res == null) {
-                        return;
-                      }
-
-                      final files = res.paths
-                          .whereType<String>()
-                          .map((path) => File(path))
-                          .toList();
 
                       if (files.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('No files selected.')),
-                        );
                         return;
                       }
 
-                      if (!context.mounted) {
-                        return;
-                      }
+                      setState(() {
+                        isUp = true;
+                        showDone = false;
+                        currentFilePath = files.first.path;
+                      });
+
                       context.read<TransferBloc>().add(
                         SendRequested(files: files, rCode: code),
                       );
                     },
               child: isBusy
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16.r,
-                          height: 16.r,
-                          child: const CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        ),
-                        8.horizontalSpace,
-                        const Text('Please wait...'),
-                      ],
-                    )
+                  ? const Text('Please wait...')
                   : const Text('Pick & Send Files'),
             );
+          },
+        ),
+        8.verticalSpace,
+        BlocBuilder<TransferBloc, TransferState>(
+          builder: (context, state) {
+            if (state is TransferLoading && !state.isDownload) {
+              if (!isUp || state.activeId != currentFilePath) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) {
+                    return;
+                  }
+                  setState(() {
+                    isUp = true;
+                    showDone = false;
+                    currentFilePath = state.activeId;
+                  });
+                });
+              }
+              return const LinearProgressIndicator(value: null);
+            }
+
+            if (state is TransferInProgress && !state.isDownload) {
+              if (!isUp || state.activeId != currentFilePath) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) {
+                    return;
+                  }
+                  setState(() {
+                    isUp = true;
+                    showDone = false;
+                    currentFilePath = state.activeId;
+                  });
+                });
+              }
+
+              final pct = (state.pct * 100).toInt();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(value: state.pct),
+                  8.verticalSpace,
+                  Text('$pct%'),
+                ],
+              );
+            }
+
+            if (state is TransferSuccess && isUp) {
+              if (!showDone) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) {
+                    return;
+                  }
+                  setState(() {
+                    showDone = true;
+                    isUp = false;
+                  });
+                });
+              }
+              return Text('Upload complete', style: doneStyle);
+            }
+
+            if (state is TransferFailure && isUp) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) {
+                  return;
+                }
+                setState(() {
+                  isUp = false;
+                  showDone = false;
+                });
+              });
+            }
+
+            if (showDone) {
+              return Text('Upload complete', style: doneStyle);
+            }
+
+            return const SizedBox.shrink();
           },
         ),
       ],

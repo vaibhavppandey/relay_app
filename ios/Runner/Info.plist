@@ -28,6 +28,12 @@
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Required to save received media to your gallery.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Required to discover and send files to nearby devices.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_relay._tcp</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

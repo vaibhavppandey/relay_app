@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:relay_app/src/app/theme.dart';
+import 'package:relay_app/src/feat/nearby/bloc/nearby_bloc.dart';
+import 'package:relay_app/src/feat/nearby/data/repo/nearby_repository.dart';
 import 'package:relay_app/src/feat/onboarding/bloc/onboarding_bloc.dart';
 import 'package:relay_app/src/feat/onboarding/data/repo/onboarding_repo.dart';
 import 'package:relay_app/src/feat/onboarding/presentation/page/splash_screen.dart';
@@ -28,6 +30,10 @@ class RelayApp extends StatelessWidget {
         BlocProvider<IncomingBloc>(
           create: (context) =>
               IncomingBloc(repo: context.read<TransferRepository>()),
+        ),
+        BlocProvider<NearbyBloc>(
+          create: (context) =>
+              NearbyBloc(repo: context.read<NearbyRepository>()),
         ),
       ],
       child: ScreenUtilInit(

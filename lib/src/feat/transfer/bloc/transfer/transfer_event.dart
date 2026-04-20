@@ -37,13 +37,3 @@ final class TransferCancelled extends TransferEvent {
 final class TransferReset extends TransferEvent {
   const TransferReset();
 }
-
-final class ProgressUpdated extends TransferEvent {
-  const ProgressUpdated(this.current, this.total);
-
-  final int current;
-  final int total;
-
-  @override
-  List<Object> get props => [current, total];
-}

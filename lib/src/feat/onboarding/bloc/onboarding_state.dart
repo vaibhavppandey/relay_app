@@ -12,7 +12,12 @@ final class OnboardingInitial extends OnboardingState {
 }
 
 final class OnboardingLoading extends OnboardingState {
-  const OnboardingLoading();
+  const OnboardingLoading({required this.message});
+
+  final String message;
+
+  @override
+  List<Object?> get props => [message];
 }
 
 final class OnboardingSuccess extends OnboardingState {
