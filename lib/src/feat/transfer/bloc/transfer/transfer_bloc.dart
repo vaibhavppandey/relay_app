@@ -4,6 +4,7 @@ import 'package:bloc/bloc.dart';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'package:relay_app/src/core/util/user_friendly_error.dart';
+import 'package:relay_app/src/core/util/recovery_queue.dart';
 import 'package:relay_app/src/feat/transfer/data/model/transfer_model.dart';
 import 'package:relay_app/src/feat/transfer/data/repo/transfer_repository.dart';
 
@@ -19,10 +20,37 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
     : _transferRepository = repository,
       super(TransferInitial()) {
     on<SendRequested>(_onSendRequested);
+    on<RecoveryRequested>(_onRecoveryRequested);
     on<DownloadRequested>(_onDownloadRequested);
     on<ProgressUpdated>(_onProgressUpdated);
     on<TransferCancelled>(_onTransferCancelled);
     on<TransferReset>(_onTransferReset);
+  }
+
+  Future<void> _onRecoveryRequested(
+    RecoveryRequested event,
+    Emitter<TransferState> emit,
+  ) async {
+    await _transferRepository.cleanupStaleTransfers();
+    final list = await RecoveryQueue.getPendingTransfers();
+    if (list.isEmpty) {
+      return;
+    }
+
+    for (final item in list) {
+      final path = item['path'];
+      final code = item['code'];
+      if (path == null || code == null) {
+        continue;
+      }
+
+      final file = File(path);
+      if (file.existsSync()) {
+        add(SendRequested(files: [file], rCode: code));
+      } else {
+        await RecoveryQueue.removeTransfer(path);
+      }
+    }
   }
 
   Future<void> _onSendRequested(
@@ -31,6 +59,7 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
   ) async {
     emit(TransferLoading());
     _isDownloadTransfer = false;
+    var hasError = false;
     for (final file in event.files) {
       final cancelToken = CancelToken();
       _cancelToken = cancelToken;
@@ -48,6 +77,8 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
           return;
         }
         emit(TransferFailure(userFriendlyErrorMessage(err)));
+        hasError = true;
+        continue;
       } finally {
         if (identical(_cancelToken, cancelToken)) {
           _cancelToken = null;
@@ -55,7 +86,9 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
       }
     }
 
-    emit(TransferSuccess());
+    if (!hasError) {
+      emit(TransferSuccess());
+    }
   }
 
   Future<void> _onDownloadRequested(

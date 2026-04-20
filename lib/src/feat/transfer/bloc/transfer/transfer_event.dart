@@ -17,6 +17,10 @@ final class SendRequested extends TransferEvent {
   List<Object> get props => [rCode, ...files.map((file) => file.path)];
 }
 
+final class RecoveryRequested extends TransferEvent {
+  const RecoveryRequested();
+}
+
 final class DownloadRequested extends TransferEvent {
   const DownloadRequested({required this.t});
 

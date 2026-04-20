@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final state = context.read<OnboardingBloc>().state;
     _myCode = state is OnboardingSuccess ? state.shortCode : '';
     context.read<IncomingBloc>().add(StartListening(myCode: _myCode));
+    context.read<TransferBloc>().add(const RecoveryRequested());
   }
 
   @override
@@ -45,77 +46,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Relay')),
-      body: MultiBlocListener(
-        listeners: [
-          BlocListener<IncomingBloc, IncomingState>(
-            listener: (context, state) {
-              if (state is IncomingFailure) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(state.msg)));
-              }
-            },
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Relay'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Send'),
+              Tab(text: 'Pending'),
+              Tab(text: 'Saved'),
+            ],
           ),
-          BlocListener<TransferBloc, TransferState>(
-            listener: (context, state) {
-              if (state is TransferFailure) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(state.msg)));
-              }
+        ),
+        body: MultiBlocListener(
+          listeners: [
+            BlocListener<IncomingBloc, IncomingState>(
+              listener: (context, state) {
+                if (state is IncomingFailure) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(state.msg)));
+                }
+              },
+            ),
+            BlocListener<TransferBloc, TransferState>(
+              listener: (context, state) {
+                if (state is TransferFailure) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(state.msg)));
+                }
 
-              if (state is TransferSuccess) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Success')));
-                context.read<TransferBloc>().add(const TransferReset());
-              }
-            },
-          ),
-        ],
-        child: SafeArea(
-          child: Padding(
-            padding: EdgeInsets.all(16.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+                if (state is TransferSuccess) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Success')));
+                  context.read<TransferBloc>().add(const TransferReset());
+                }
+              },
+            ),
+          ],
+          child: SafeArea(
+            child: TabBarView(
               children: [
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(12.w),
-                    decoration: BoxDecoration(
-                      color: scheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                    child: Text(
-                      'Your code: $_myCode',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: scheme.onSecondaryContainer,
+                Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Card(
+                        margin: EdgeInsets.zero,
+                        child: Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(12.w),
+                          decoration: BoxDecoration(
+                            color: scheme.secondaryContainer,
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                          child: Text(
+                            'Your code: $_myCode',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(color: scheme.onSecondaryContainer),
+                          ),
+                        ),
                       ),
-                    ),
+                      12.verticalSpace,
+                      const SenderTextFieldWidget(),
+                      12.verticalSpace,
+                      const ProgressIndicatorWidget(),
+                    ],
                   ),
                 ),
-                12.verticalSpace,
-                const SenderTextFieldWidget(),
-                12.verticalSpace,
-                Text(
-                  'Incoming',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: const IncomingFilesWidget(),
                 ),
-                8.verticalSpace,
-                const IncomingFilesWidget(),
-                12.verticalSpace,
-                Text(
-                  'Downloaded',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: const DownloadedFilesWidget(),
                 ),
-                8.verticalSpace,
-                const DownloadedFilesWidget(),
-                12.verticalSpace,
-                const ProgressIndicatorWidget(),
               ],
             ),
           ),

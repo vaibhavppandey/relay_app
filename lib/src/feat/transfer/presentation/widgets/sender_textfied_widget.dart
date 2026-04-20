@@ -15,9 +15,17 @@ class SenderTextFieldWidget extends StatefulWidget {
 
 class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
   final textFieldController = TextEditingController();
+  var isCodeValid = false;
+
+  @override
+  void initState() {
+    super.initState();
+    textFieldController.addListener(_onCodeChanged);
+  }
 
   @override
   void dispose() {
+    textFieldController.removeListener(_onCodeChanged);
     textFieldController.dispose();
     super.dispose();
   }
@@ -35,48 +43,85 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
           ),
         ),
         8.verticalSpace,
-        ElevatedButton(
-          onPressed: () async {
-            final code = textFieldController.text.trim();
-            if (code.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Enter recipient code.')),
-              );
-              return;
-            }
+        BlocBuilder<TransferBloc, TransferState>(
+          builder: (context, state) {
+            final isBusy =
+                state is TransferLoading || state is TransferInProgress;
+            final canSend = isCodeValid && !isBusy;
+            return ElevatedButton(
+              onPressed: !canSend
+                  ? null
+                  : () async {
+                      final code = textFieldController.text.trim();
+                      if (code.length != 6) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Recipient code must be 6 characters.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
 
-            final res = await FilePicker.platform.pickFiles(
-              allowMultiple: true,
-            );
-            if (!context.mounted) {
-              return;
-            }
-            if (res == null) {
-              return;
-            }
+                      final res = await FilePicker.platform.pickFiles(
+                        allowMultiple: true,
+                      );
+                      if (!context.mounted) {
+                        return;
+                      }
+                      if (res == null) {
+                        return;
+                      }
 
-            final files = res.paths
-                .whereType<String>()
-                .map((path) => File(path))
-                .toList();
+                      final files = res.paths
+                          .whereType<String>()
+                          .map((path) => File(path))
+                          .toList();
 
-            if (files.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('No files selected.')),
-              );
-              return;
-            }
+                      if (files.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('No files selected.')),
+                        );
+                        return;
+                      }
 
-            if (!context.mounted) {
-              return;
-            }
-            context.read<TransferBloc>().add(
-              SendRequested(files: files, rCode: code),
+                      if (!context.mounted) {
+                        return;
+                      }
+                      context.read<TransferBloc>().add(
+                        SendRequested(files: files, rCode: code),
+                      );
+                    },
+              child: isBusy
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16.r,
+                          height: 16.r,
+                          child: const CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        ),
+                        8.horizontalSpace,
+                        const Text('Please wait...'),
+                      ],
+                    )
+                  : const Text('Pick & Send Files'),
             );
           },
-          child: const Text('Pick & Send Files'),
         ),
       ],
     );
+  }
+
+  void _onCodeChanged() {
+    final next = textFieldController.text.trim().length == 6;
+    if (next != isCodeValid) {
+      setState(() {
+        isCodeValid = next;
+      });
+    }
   }
 }

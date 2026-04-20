@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:relay_app/pigeons/generated/media_saver.g.dart';
 import 'package:relay_app/src/core/error/exception.dart';
 import 'package:relay_app/src/core/native/bg_service.dart';
+import 'package:relay_app/src/core/util/recovery_queue.dart';
 import 'package:relay_app/src/feat/transfer/data/model/transfer_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -36,6 +37,7 @@ class TransferRepository {
     final fileSize = await file.length();
     final fileName = file.path.split('/').last;
     _bg.startTransfer(fileName);
+    await RecoveryQueue.addTransfer(file.path, recipientCode);
     String? transferId;
 
     try {
@@ -123,6 +125,7 @@ class TransferRepository {
           .update({'status': 'completed', 'progress_bytes': fileSize})
           .eq('id', transferId);
 
+      await RecoveryQueue.removeTransfer(file.path);
       _bg.stopTransfer();
     } catch (error) {
       _bg.stopTransfer();
@@ -137,6 +140,14 @@ class TransferRepository {
 
       throw UploadFailedException(error.toString());
     }
+  }
+
+  Future<void> cleanupStaleTransfers() async {
+    final sId = _supabase.auth.currentUser!.id;
+    await _supabase.from('transfers').delete().eq('sender_id', sId).inFilter(
+      'status',
+      ['pending', 'transferring'],
+    );
   }
 
   Stream<List<TransferData>> listenIncoming(String recipientCode) async* {

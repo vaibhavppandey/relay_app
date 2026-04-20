@@ -57,20 +57,18 @@ class DownloadedFilesWidget extends StatelessWidget {
           return _emptyState(context, 'No downloaded files available yet.');
         }
 
-        return Expanded(
-          child: ListView.builder(
-            itemCount: lst.length,
-            itemBuilder: (context, i) {
-              final t = lst[i];
-              return ListTile(
-                title: Text(t.fileName),
-                trailing: IconButton(
-                  onPressed: () => _share(context, t.fileName),
-                  icon: Icon(Icons.share, size: 20.r),
-                ),
-              );
-            },
-          ),
+        return ListView.builder(
+          itemCount: lst.length,
+          itemBuilder: (context, i) {
+            final t = lst[i];
+            return ListTile(
+              title: Text(t.fileName),
+              trailing: IconButton(
+                onPressed: () => _share(context, t.fileName),
+                icon: Icon(Icons.share, size: 20.r),
+              ),
+            );
+          },
         );
       },
     );
