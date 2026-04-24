@@ -29,13 +29,13 @@ class MainActivity : FlutterActivity(), MediaSaverApi {
 		mime: String,
 		callback: (Result<Boolean>) -> Unit,
 	) {
-		try {
-			val src = File(path)
-			if (!src.exists()) {
-				callback(Result.success(false))
-				return
-			}
+		val src = File(path)
+		if (!src.exists()) {
+			callback(Result.failure(FlutterError("save_missing_file", "Source file not found", path)))
+			return
+		}
 
+		try {
 			val vals = ContentValues().apply {
 				put(MediaStore.MediaColumns.DISPLAY_NAME, name)
 				put(MediaStore.MediaColumns.MIME_TYPE, mime)
@@ -44,13 +44,29 @@ class MainActivity : FlutterActivity(), MediaSaverApi {
 
 			val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, vals)
 				?: run {
-					callback(Result.success(false))
+					callback(
+						Result.failure(
+							FlutterError(
+								"save_insert_failed",
+								"Could not create a destination entry in Downloads",
+								null,
+							),
+						),
+					)
 					return
 				}
 
 			val out = contentResolver.openOutputStream(uri)
 			if (out == null) {
-				callback(Result.success(false))
+				callback(
+					Result.failure(
+						FlutterError(
+							"save_stream_failed",
+							"Could not open destination output stream",
+							uri.toString(),
+						),
+					),
+				)
 				return
 			}
 
@@ -61,8 +77,8 @@ class MainActivity : FlutterActivity(), MediaSaverApi {
 			}
 
 			callback(Result.success(true))
-		} catch (_: Exception) {
-			callback(Result.success(false))
+		} catch (e: Exception) {
+			callback(Result.failure(FlutterError("save_failed", e.message, null)))
 		}
 	}
 

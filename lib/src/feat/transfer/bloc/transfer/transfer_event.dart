@@ -17,6 +17,21 @@ final class SendRequested extends TransferEvent {
   List<Object> get props => [rCode, ...files.map((file) => file.path)];
 }
 
+final class SendNearbyRequested extends TransferEvent {
+  const SendNearbyRequested({required this.files, required this.target});
+
+  final List<File> files;
+  final Service target;
+
+  @override
+  List<Object> get props => [
+    target.name ?? '',
+    target.host ?? '',
+    target.port ?? 0,
+    ...files.map((file) => file.path),
+  ];
+}
+
 final class RecoveryRequested extends TransferEvent {
   const RecoveryRequested();
 }

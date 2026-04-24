@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
+import 'package:nsd/nsd.dart';
 import 'package:relay_app/src/core/util/user_friendly_error.dart';
 import 'package:relay_app/src/core/util/recovery_queue.dart';
+import 'package:relay_app/src/feat/nearby/data/repo/nearby_repository.dart';
 import 'package:relay_app/src/feat/transfer/data/model/transfer_model.dart';
 import 'package:relay_app/src/feat/transfer/data/repo/transfer_repository.dart';
 
@@ -14,17 +16,63 @@ part 'transfer_state.dart';
 
 class TransferBloc extends Bloc<TransferEvent, TransferState> {
   final TransferRepository _transferRepository;
+  final NearbyRepository _nearbyRepository;
   CancelToken? _cancelToken;
   String? _activeDownloadId;
 
-  TransferBloc({required TransferRepository repository})
-    : _transferRepository = repository,
-      super(TransferInitial()) {
+  TransferBloc({
+    required TransferRepository repository,
+    required NearbyRepository nearbyRepository,
+  }) : _transferRepository = repository,
+       _nearbyRepository = nearbyRepository,
+       super(TransferInitial()) {
     on<SendRequested>(_onSendRequested);
+    on<SendNearbyRequested>(_onSendNearbyRequested);
     on<RecoveryRequested>(_onRecoveryRequested);
     on<DownloadRequested>(_onDownloadRequested);
     on<TransferCancelled>(_onTransferCancelled);
     on<TransferReset>(_onTransferReset);
+  }
+
+  Future<void> _onSendNearbyRequested(
+    SendNearbyRequested event,
+    Emitter<TransferState> emit,
+  ) async {
+    var hasError = false;
+    for (final file in event.files) {
+      emit(TransferLoading(isDownload: false, activeId: file.path));
+
+      try {
+        final ok = await _nearbyRepository.sendFile(
+          file,
+          event.target,
+          onProgress: (val) => emit(
+            TransferInProgress(
+              pct: val,
+              isDownload: false,
+              activeId: file.path,
+            ),
+          ),
+        );
+        if (!ok) {
+          emit(
+            const TransferFailure(
+              'Nearby TCP transfer failed. Make sure both devices are on the same network.',
+            ),
+          );
+          hasError = true;
+          continue;
+        }
+      } catch (err) {
+        emit(TransferFailure(userFriendlyErrorMessage(err)));
+        hasError = true;
+        continue;
+      }
+    }
+
+    if (!hasError) {
+      emit(TransferSuccess());
+    }
   }
 
   Future<void> _onRecoveryRequested(

@@ -15,7 +15,9 @@ class SplashScreen extends StatelessWidget {
         listener: (context, state) {
           if (state is OnboardingSuccess) {
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+              MaterialPageRoute<void>(
+                builder: (_) => HomeScreen(myCode: state.shortCode),
+              ),
             );
           }
         },

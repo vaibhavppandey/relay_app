@@ -261,9 +261,7 @@ class TransferRepository {
   Future<TransferData?> getTransferById(String id) async {
     final rec = await _supabase
         .from('transfers')
-        .select(
-          'id,sender_id,recipient_id,storage_bucket_path,file_name,file_size,status,progress_bytes',
-        )
+        .select('*')
         .eq('id', id)
         .maybeSingle();
 
@@ -349,7 +347,7 @@ class TransferRepository {
       );
       if (!saved) {
         throw const DownloadFailedException(
-          'Could not save file to Downloads folder.',
+          'Could not save file on this device.',
         );
       }
 

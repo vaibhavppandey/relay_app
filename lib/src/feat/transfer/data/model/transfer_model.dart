@@ -8,6 +8,7 @@ class TransferData {
     required this.fileSize,
     required this.status,
     required this.progressBytes,
+    this.sha256Hex,
   });
 
   factory TransferData.fromJson(Map<String, dynamic> json) {
@@ -20,6 +21,7 @@ class TransferData {
       fileSize: (json['file_size'] as num).toInt(),
       status: json['status'] as String,
       progressBytes: (json['progress_bytes'] as num?)?.toInt() ?? 0,
+      sha256Hex: (json['sha256'] as String?)?.trim().toLowerCase(),
     );
   }
 
@@ -31,4 +33,5 @@ class TransferData {
   final int fileSize;
   final String status;
   final int progressBytes;
+  final String? sha256Hex;
 }

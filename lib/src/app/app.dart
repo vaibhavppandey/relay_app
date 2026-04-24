@@ -24,8 +24,10 @@ class RelayApp extends StatelessWidget {
                 ..add(const AppStarted()),
         ),
         BlocProvider<TransferBloc>(
-          create: (context) =>
-              TransferBloc(repository: context.read<TransferRepository>()),
+          create: (context) => TransferBloc(
+            repository: context.read<TransferRepository>(),
+            nearbyRepository: context.read<NearbyRepository>(),
+          ),
         ),
         BlocProvider<IncomingBloc>(
           create: (context) =>

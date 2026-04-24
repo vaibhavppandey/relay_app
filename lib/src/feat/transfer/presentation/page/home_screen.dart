@@ -3,11 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:nsd/nsd.dart';
 import 'package:relay_app/src/core/native/native_file_picker.dart';
-import 'package:relay_app/src/feat/nearby/bloc/nearby_bloc.dart';
 import 'package:relay_app/src/feat/nearby/data/repo/nearby_repository.dart';
 import 'package:relay_app/src/feat/nearby/presentation/widgets/nearby_bottom_sheet.dart';
-import 'package:relay_app/src/feat/onboarding/bloc/onboarding_bloc.dart';
 import 'package:relay_app/src/feat/transfer/bloc/incoming/incoming_bloc.dart';
 import 'package:relay_app/src/feat/transfer/bloc/transfer/transfer_bloc.dart';
 import 'package:relay_app/src/feat/transfer/presentation/widgets/downloaded_files_widget.dart';
@@ -15,40 +14,45 @@ import 'package:relay_app/src/feat/transfer/presentation/widgets/incoming_files_
 import 'package:relay_app/src/feat/transfer/presentation/widgets/sender_textfied_widget.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({required this.myCode, super.key});
+
+  final String myCode;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  late final String _myCode;
+  late final IncomingBloc _incomingBloc;
+  late final TransferBloc _transferBloc;
+  late final NearbyRepository _nearbyRepository;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    final state = context.read<OnboardingBloc>().state;
-    _myCode = state is OnboardingSuccess ? state.shortCode : '';
-    context.read<NearbyBloc>();
-    context.read<IncomingBloc>().add(StartListening(myCode: _myCode));
-    context.read<TransferBloc>().add(const RecoveryRequested());
-    if (_myCode.isNotEmpty) {
-      unawaited(context.read<NearbyRepository>().startBroadcasting(_myCode));
+    _incomingBloc = context.read<IncomingBloc>();
+    _transferBloc = context.read<TransferBloc>();
+    _nearbyRepository = context.read<NearbyRepository>();
+
+    _incomingBloc.add(StartListening(myCode: widget.myCode));
+    _transferBloc.add(const RecoveryRequested());
+    if (widget.myCode.isNotEmpty) {
+      unawaited(_nearbyRepository.startBroadcasting(widget.myCode));
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _myCode.isNotEmpty) {
-      context.read<IncomingBloc>().add(StartListening(myCode: _myCode));
+    if (state == AppLifecycleState.resumed && widget.myCode.isNotEmpty) {
+      _incomingBloc.add(StartListening(myCode: widget.myCode));
     }
   }
 
   @override
   void dispose() {
-    unawaited(context.read<NearbyRepository>().stopDiscoveryScan());
-    unawaited(context.read<NearbyRepository>().stopBroadcasting());
+    unawaited(_nearbyRepository.stopDiscoveryScan());
+    unawaited(_nearbyRepository.stopBroadcasting());
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -64,39 +68,52 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           title: const Text('Relay'),
           actions: [
             Builder(
-              builder: (tabContext) => IconButton(
-                onPressed: () async {
-                  final code = await showModalBottomSheet<String>(
-                    context: tabContext,
-                    builder: (c) => NearbyBottomSheet(myCode: _myCode),
-                  );
-                  if (!mounted || !tabContext.mounted) {
-                    return;
-                  }
-                  if (code == null || code.isEmpty) {
-                    return;
-                  }
+              builder: (tabContext) => BlocBuilder<TransferBloc, TransferState>(
+                bloc: _transferBloc,
+                builder: (context, transferState) {
+                  final busy = _isTransferBusy(transferState);
+                  return IconButton(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            final target = await showModalBottomSheet<Service>(
+                              context: tabContext,
+                              builder: (c) =>
+                                  NearbyBottomSheet(myCode: widget.myCode),
+                            );
+                            if (!mounted || !tabContext.mounted) {
+                              return;
+                            }
+                            if (target == null) {
+                              return;
+                            }
 
-                  final ctrl = DefaultTabController.of(tabContext);
-                  ctrl.animateTo(0);
+                            final ctrl = DefaultTabController.of(tabContext);
+                            ctrl.animateTo(0);
 
-                  await Future<void>.delayed(const Duration(milliseconds: 250));
-                  if (!mounted || !tabContext.mounted) {
-                    return;
-                  }
+                            await Future<void>.delayed(
+                              const Duration(milliseconds: 250),
+                            );
+                            if (!mounted || !tabContext.mounted) {
+                              return;
+                            }
 
-                  final files = await NativeFilePicker.pickFiles(
-                    allowMultiple: true,
-                  );
-                  if (!mounted || !tabContext.mounted || files.isEmpty) {
-                    return;
-                  }
+                            final files = await NativeFilePicker.pickFiles(
+                              allowMultiple: true,
+                            );
+                            if (!mounted ||
+                                !tabContext.mounted ||
+                                files.isEmpty) {
+                              return;
+                            }
 
-                  tabContext.read<TransferBloc>().add(
-                    SendRequested(files: files, rCode: code),
+                            _transferBloc.add(
+                              SendNearbyRequested(files: files, target: target),
+                            );
+                          },
+                    icon: const Icon(Icons.wifi_tethering),
                   );
                 },
-                icon: const Icon(Icons.wifi_tethering),
               ),
             ),
           ],
@@ -131,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ScaffoldMessenger.of(
                     context,
                   ).showSnackBar(const SnackBar(content: Text('Success')));
-                  context.read<TransferBloc>().add(const TransferReset());
+                  _transferBloc.add(const TransferReset());
                 }
               },
             ),
@@ -154,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             borderRadius: BorderRadius.circular(12.r),
                           ),
                           child: Text(
-                            'Your code: $_myCode',
+                            'Your code: ${widget.myCode}',
                             style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(color: scheme.onSecondaryContainer),
                           ),
@@ -179,5 +196,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  bool _isTransferBusy(TransferState state) {
+    return state is TransferLoading || state is TransferInProgress;
   }
 }

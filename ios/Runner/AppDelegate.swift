@@ -13,26 +13,83 @@ final class MediaSaverHandler: NSObject, MediaSaverApi, UIDocumentPickerDelegate
     completion: @escaping (Result<Bool, Error>) -> Void
   ) {
     let url = URL(fileURLWithPath: path)
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      completion(
+        .failure(
+          PigeonError(
+            code: "save_missing_file",
+            message: "Source file not found",
+            details: path
+          )
+        )
+      )
+      return
+    }
 
-    PHPhotoLibrary.requestAuthorization(for: .addOnly) { auth in
-      guard auth == .authorized || auth == .limited else {
-        completion(.success(false))
-        return
-      }
-
-      PHPhotoLibrary.shared().performChanges({
-        if mime.hasPrefix("video/") {
-          PHAssetCreationRequest.creationRequestForAssetFromVideo(atFileURL: url)
-        } else {
-          PHAssetCreationRequest.creationRequestForAssetFromImage(atFileURL: url)
-        }
-      }) { ok, err in
-        if err != nil {
-          completion(.success(false))
+    if mime.hasPrefix("image/") || mime.hasPrefix("video/") {
+      PHPhotoLibrary.requestAuthorization(for: .addOnly) { auth in
+        guard auth == .authorized || auth == .limited else {
+          completion(
+            .failure(
+              PigeonError(
+                code: "save_permission_denied",
+                message: "Photo Library access denied",
+                details: nil
+              )
+            )
+          )
           return
         }
-        completion(.success(ok))
+
+        PHPhotoLibrary.shared().performChanges({
+          if mime.hasPrefix("video/") {
+            PHAssetCreationRequest.creationRequestForAssetFromVideo(atFileURL: url)
+          } else {
+            PHAssetCreationRequest.creationRequestForAssetFromImage(atFileURL: url)
+          }
+        }) { ok, err in
+          if let err {
+            completion(
+              .failure(
+                PigeonError(
+                  code: "save_failed",
+                  message: err.localizedDescription,
+                  details: nil
+                )
+              )
+            )
+            return
+          }
+          completion(.success(ok))
+        }
       }
+      return
+    }
+
+    do {
+      let destinationDir = try documentsDirectory()
+      let preferredName = name.isEmpty ? url.lastPathComponent : name
+      let directDestination = destinationDir.appendingPathComponent(
+        preferredName.replacingOccurrences(of: "/", with: "_")
+      )
+      if url.standardizedFileURL == directDestination.standardizedFileURL {
+        completion(.success(true))
+        return
+      }
+      let destinationUrl = uniqueDestinationURL(in: destinationDir, preferredName: preferredName)
+
+      try FileManager.default.copyItem(at: url, to: destinationUrl)
+      completion(.success(true))
+    } catch {
+      completion(
+        .failure(
+          PigeonError(
+            code: "save_failed",
+            message: error.localizedDescription,
+            details: nil
+          )
+        )
+      )
     }
   }
 
@@ -42,10 +99,31 @@ final class MediaSaverHandler: NSObject, MediaSaverApi, UIDocumentPickerDelegate
     completion: @escaping (Result<Void, Error>) -> Void
   ) {
     let url = URL(fileURLWithPath: path)
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      completion(
+        .failure(
+          PigeonError(
+            code: "share_missing_file",
+            message: "File not found",
+            details: path
+          )
+        )
+      )
+      return
+    }
+
     DispatchQueue.main.async {
       let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
       guard let root = self.activeRootViewController() else {
-        completion(.success(()))
+        completion(
+          .failure(
+            PigeonError(
+              code: "share_no_root",
+              message: "Unable to find active view controller",
+              details: nil
+            )
+          )
+        )
         return
       }
 
@@ -144,6 +222,38 @@ final class MediaSaverHandler: NSObject, MediaSaverApi, UIDocumentPickerDelegate
       .flatMap { $0.windows }
       .first(where: { $0.isKeyWindow })?
       .rootViewController
+  }
+
+  private func documentsDirectory() throws -> URL {
+    guard let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+      throw PigeonError(
+        code: "save_no_documents_dir",
+        message: "Could not resolve documents directory",
+        details: nil
+      )
+    }
+    return directory
+  }
+
+  private func uniqueDestinationURL(in directory: URL, preferredName: String) -> URL {
+    let sanitizedRaw = preferredName.replacingOccurrences(of: "/", with: "_")
+    let sanitized = sanitizedRaw.isEmpty ? "saved_file" : sanitizedRaw
+    let ext = (sanitized as NSString).pathExtension
+    let baseName: String
+    if ext.isEmpty {
+      baseName = sanitized
+    } else {
+      baseName = (sanitized as NSString).deletingPathExtension
+    }
+
+    var candidate = directory.appendingPathComponent(sanitized)
+    var suffix = 1
+    while FileManager.default.fileExists(atPath: candidate.path) {
+      let numbered = ext.isEmpty ? "\(baseName) (\(suffix))" : "\(baseName) (\(suffix)).\(ext)"
+      candidate = directory.appendingPathComponent(numbered)
+      suffix += 1
+    }
+    return candidate
   }
 }
 

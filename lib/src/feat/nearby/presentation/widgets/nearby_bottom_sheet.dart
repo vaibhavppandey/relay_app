@@ -13,23 +13,18 @@ class NearbyBottomSheet extends StatefulWidget {
 }
 
 class _NearbyBottomSheetState extends State<NearbyBottomSheet> {
-  String? _busy;
-  NearbyBloc? _nearbyBloc;
+  late final NearbyBloc _nearbyBloc;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_nearbyBloc != null) {
-      return;
-    }
-
+  void initState() {
+    super.initState();
     _nearbyBloc = context.read<NearbyBloc>();
-    _nearbyBloc!.add(const StartScanning());
+    _nearbyBloc.add(const StartScanning());
   }
 
   @override
   void dispose() {
-    _nearbyBloc?.add(const StopScanning());
+    _nearbyBloc.add(const StopScanning());
     super.dispose();
   }
 
@@ -68,34 +63,12 @@ class _NearbyBottomSheetState extends State<NearbyBottomSheet> {
                 itemCount: lst.length,
                 itemBuilder: (context, i) {
                   final srv = lst[i];
-                  final id =
-                      '${srv.name ?? ''}-${srv.host ?? ''}-${srv.port ?? 0}';
-                  final busy = _busy == id;
                   return ListTile(
                     title: Text(srv.name ?? 'Unknown'),
                     subtitle: Text('${srv.host ?? ''}:${srv.port ?? 0}'),
-                    trailing: busy
-                        ? SizedBox(
-                            width: 20.r,
-                            height: 20.r,
-                            child: CircularProgressIndicator(strokeWidth: 2.r),
-                          )
-                        : null,
-                    onTap: busy
-                        ? null
-                        : () async {
-                            setState(() {
-                              _busy = id;
-                            });
-                            final code = srv.name;
-                            if (code == null || code.isEmpty) {
-                              setState(() {
-                                _busy = null;
-                              });
-                              return;
-                            }
-                            Navigator.of(context).pop(code);
-                          },
+                    onTap: () {
+                      Navigator.of(context).pop(srv);
+                    },
                   );
                 },
               );

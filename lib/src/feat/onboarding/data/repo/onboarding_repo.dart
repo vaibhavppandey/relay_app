@@ -21,6 +21,10 @@ class OnboardingRepository {
     return _prefs.getString(SharedPrefsConstants.userShortCode);
   }
 
+  String? getCurrentUserId() {
+    return _supabase.auth.currentUser?.id;
+  }
+
   // locally save once the code is generated
   Future<void> saveLocalShortCode(String code) async {
     await _prefs.setString(SharedPrefsConstants.userShortCode, code);

@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:relay_app/pigeons/generated/media_saver.g.dart';
 import 'package:relay_app/src/core/util/mime_type.dart';
 import 'package:relay_app/src/feat/transfer/bloc/incoming/incoming_bloc.dart';
+import 'package:relay_app/src/feat/transfer/presentation/widgets/incoming_state_view.dart';
 
 class DownloadedFilesWidget extends StatelessWidget {
   const DownloadedFilesWidget({super.key});
@@ -38,20 +39,18 @@ class DownloadedFilesWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<IncomingBloc, IncomingState>(
       builder: (context, state) {
-        if (state is IncomingInitial || state is IncomingLoading) {
+        if (state.isLoading) {
           return Padding(
             padding: EdgeInsets.symmetric(vertical: 12.h),
             child: Center(child: CircularProgressIndicator()),
           );
         }
 
-        if (state is! IncomingLoaded && state is! IncomingFailure) {
+        final all = state.transfersOrNull;
+        if (all == null) {
           return const SizedBox.shrink();
         }
 
-        final all = state is IncomingLoaded
-            ? state.lst
-            : (state as IncomingFailure).lst;
         final lst = all.where((t) => t.status == 'downloaded').toList();
         if (lst.isEmpty) {
           return _emptyState(context, 'No downloaded files available yet.');
@@ -62,6 +61,7 @@ class DownloadedFilesWidget extends StatelessWidget {
           itemBuilder: (context, i) {
             final t = lst[i];
             return ListTile(
+              key: ValueKey(t.id),
               title: Text(t.fileName),
               trailing: IconButton(
                 onPressed: () => _share(context, t.fileName),

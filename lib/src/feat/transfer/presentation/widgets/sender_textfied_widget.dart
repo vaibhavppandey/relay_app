@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter/services.dart';
 import 'package:relay_app/src/core/native/native_file_picker.dart';
 import 'package:relay_app/src/feat/transfer/bloc/transfer/transfer_bloc.dart';
 
@@ -13,10 +14,8 @@ class SenderTextFieldWidget extends StatefulWidget {
 
 class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
   final textFieldController = TextEditingController();
-  var isCodeValid = false;
-  var isUp = false;
-  var showDone = false;
-  String? currentFilePath;
+  final ValueNotifier<bool> _isCodeValid = ValueNotifier(false);
+  final ValueNotifier<bool> _showDone = ValueNotifier(false);
 
   @override
   void initState() {
@@ -28,6 +27,8 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
   void dispose() {
     textFieldController.removeListener(_onCodeChanged);
     textFieldController.dispose();
+    _isCodeValid.dispose();
+    _showDone.dispose();
     super.dispose();
   }
 
@@ -38,155 +39,154 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
       fontSize: 14.sp,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          controller: textFieldController,
-          decoration: const InputDecoration(
-            labelText: 'Recipient code',
-            border: OutlineInputBorder(),
+    return BlocListener<TransferBloc, TransferState>(
+      listenWhen: (previous, current) {
+        final uploadWasActive = _isActiveUploadState(previous);
+        final terminalState = current is TransferSuccess || current is TransferFailure;
+        return uploadWasActive && terminalState;
+      },
+      listener: (context, state) {
+        if (state is TransferSuccess) {
+          _showDone.value = true;
+        }
+
+        if (state is TransferFailure) {
+          _showDone.value = false;
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: textFieldController,
+            textCapitalization: TextCapitalization.characters,
+            keyboardType: TextInputType.visiblePassword,
+            enableSuggestions: false,
+            autocorrect: false,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+              LengthLimitingTextInputFormatter(6),
+              _UpperCaseTextFormatter(),
+            ],
+            decoration: const InputDecoration(
+              labelText: 'Recipient code',
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
-        8.verticalSpace,
-        BlocBuilder<TransferBloc, TransferState>(
-          builder: (context, state) {
-            final isBusy =
-                (state is TransferLoading && !state.isDownload) ||
-                (state is TransferInProgress && !state.isDownload);
-            final canSend = isCodeValid && !isBusy;
-            return ElevatedButton(
-              onPressed: !canSend
-                  ? null
-                  : () async {
-                      final code = textFieldController.text.trim();
-                      if (code.length != 6) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Recipient code must be 6 characters.',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
+          8.verticalSpace,
+          ValueListenableBuilder<bool>(
+            valueListenable: _isCodeValid,
+            builder: (context, isCodeValid, _) {
+              return BlocBuilder<TransferBloc, TransferState>(
+                builder: (context, state) {
+                  final isBusy =
+                      state is TransferLoading || state is TransferInProgress;
+                  final canSend = isCodeValid && !isBusy;
+                  return ElevatedButton(
+                    onPressed: !canSend
+                        ? null
+                        : () async {
+                            final code = textFieldController.text
+                                .trim()
+                                .toUpperCase();
+                            if (code.length != 6) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Recipient code must be 6 characters.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
 
-                      final files = await NativeFilePicker.pickFiles(
-                        allowMultiple: true,
-                      );
-                      if (!context.mounted) {
-                        return;
-                      }
+                            final files = await NativeFilePicker.pickFiles(
+                              allowMultiple: true,
+                            );
+                            if (!context.mounted) {
+                              return;
+                            }
 
-                      if (files.isEmpty) {
-                        return;
-                      }
+                            if (files.isEmpty) {
+                              return;
+                            }
 
-                      setState(() {
-                        isUp = true;
-                        showDone = false;
-                        currentFilePath = files.first.path;
-                      });
+                            _showDone.value = false;
 
-                      context.read<TransferBloc>().add(
-                        SendRequested(files: files, rCode: code),
-                      );
-                    },
-              child: isBusy
-                  ? const Text('Please wait...')
-                  : const Text('Pick & Send Files'),
-            );
-          },
-        ),
-        8.verticalSpace,
-        BlocBuilder<TransferBloc, TransferState>(
-          builder: (context, state) {
-            if (state is TransferLoading && !state.isDownload) {
-              if (!isUp || state.activeId != currentFilePath) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) {
-                    return;
-                  }
-                  setState(() {
-                    isUp = true;
-                    showDone = false;
-                    currentFilePath = state.activeId;
-                  });
-                });
-              }
-              return const LinearProgressIndicator(value: null);
-            }
-
-            if (state is TransferInProgress && !state.isDownload) {
-              if (!isUp || state.activeId != currentFilePath) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) {
-                    return;
-                  }
-                  setState(() {
-                    isUp = true;
-                    showDone = false;
-                    currentFilePath = state.activeId;
-                  });
-                });
-              }
-
-              final pct = (state.pct * 100).toInt();
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LinearProgressIndicator(value: state.pct),
-                  8.verticalSpace,
-                  Text('$pct%'),
-                ],
+                            context.read<TransferBloc>().add(
+                              SendRequested(files: files, rCode: code),
+                            );
+                          },
+                    child: isBusy
+                        ? const Text('Please wait...')
+                        : const Text('Pick & Send Files'),
+                  );
+                },
               );
-            }
-
-            if (state is TransferSuccess && isUp) {
-              if (!showDone) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) {
-                    return;
-                  }
-                  setState(() {
-                    showDone = true;
-                    isUp = false;
-                  });
-                });
+            },
+          ),
+          8.verticalSpace,
+          BlocBuilder<TransferBloc, TransferState>(
+            builder: (context, state) {
+              if (state is TransferLoading && !state.isDownload) {
+                return const LinearProgressIndicator(value: null);
               }
-              return Text('Upload complete', style: doneStyle);
-            }
 
-            if (state is TransferFailure && isUp) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) {
-                  return;
-                }
-                setState(() {
-                  isUp = false;
-                  showDone = false;
-                });
-              });
-            }
+              if (state is TransferInProgress && !state.isDownload) {
+                final pct = (state.pct * 100).toInt();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    LinearProgressIndicator(value: state.pct),
+                    8.verticalSpace,
+                    Text('$pct%'),
+                  ],
+                );
+              }
 
-            if (showDone) {
-              return Text('Upload complete', style: doneStyle);
-            }
-
-            return const SizedBox.shrink();
-          },
-        ),
-      ],
+              return ValueListenableBuilder<bool>(
+                valueListenable: _showDone,
+                builder: (context, showDone, _) {
+                  if (showDone) {
+                    return Text('Upload complete', style: doneStyle);
+                  }
+                  return const SizedBox.shrink();
+                },
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
   void _onCodeChanged() {
     final next = textFieldController.text.trim().length == 6;
-    if (next != isCodeValid) {
-      setState(() {
-        isCodeValid = next;
-      });
+    if (next != _isCodeValid.value) {
+      _isCodeValid.value = next;
     }
+  }
+
+  bool _isActiveUploadState(TransferState state) {
+    if (state is TransferLoading) {
+      return !state.isDownload;
+    }
+    if (state is TransferInProgress) {
+      return !state.isDownload;
+    }
+    return false;
+  }
+}
+
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  const _UpperCaseTextFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }
