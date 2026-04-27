@@ -2,6 +2,7 @@ import Flutter
 import Photos
 import UIKit
 import UniformTypeIdentifiers
+import workmanager_apple
 
 final class MediaSaverHandler: NSObject, MediaSaverApi, UIDocumentPickerDelegate {
   private var pickCompletion: ((Result<[String], Error>) -> Void)?
@@ -265,6 +266,10 @@ final class MediaSaverHandler: NSObject, MediaSaverApi, UIDocumentPickerDelegate
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    WorkmanagerPlugin.registerBGProcessingTask(
+      withIdentifier: "com.vaibhavp.relay.transfer.processing"
+    )
+
     if let flutterViewController = window?.rootViewController as? FlutterViewController {
       MediaSaverApiSetup.setUp(
         binaryMessenger: flutterViewController.binaryMessenger,

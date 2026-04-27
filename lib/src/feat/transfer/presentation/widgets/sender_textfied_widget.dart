@@ -34,11 +34,6 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final doneStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: Theme.of(context).colorScheme.primary,
-      fontSize: 14.sp,
-    );
-
     return BlocListener<TransferBloc, TransferState>(
       listenWhen: (previous, current) {
         final uploadWasActive = _isActiveUploadState(previous);
@@ -145,15 +140,7 @@ class _SenderTextFieldWidgetState extends State<SenderTextFieldWidget> {
                 );
               }
 
-              return ValueListenableBuilder<bool>(
-                valueListenable: _showDone,
-                builder: (context, showDone, _) {
-                  if (showDone) {
-                    return Text('Upload complete', style: doneStyle);
-                  }
-                  return const SizedBox.shrink();
-                },
-              );
+              return const SizedBox.shrink();
             },
           ),
         ],

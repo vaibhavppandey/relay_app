@@ -49,3 +49,6 @@ app.*.map.json
 
 #fvm
 .fvm/
+
+# vsocde config
+.vscode/

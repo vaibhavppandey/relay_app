@@ -6,6 +6,7 @@ import 'package:logger/logger.dart';
 import 'package:relay_app/src/app/app.dart';
 import 'package:relay_app/src/core/constant/key.dart';
 import 'package:relay_app/src/core/native/bg_service.dart';
+import 'package:relay_app/src/core/native/transfer_work_scheduler.dart';
 import 'package:relay_app/src/feat/nearby/data/repo/nearby_repository.dart';
 import 'package:relay_app/src/feat/onboarding/data/repo/onboarding_repo.dart';
 import 'package:relay_app/src/feat/transfer/data/repo/transfer_repository.dart';
@@ -15,6 +16,7 @@ import 'package:uuid/uuid.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await TransferWorkScheduler.init();
   final bgServiceManager = BgServiceManager();
   await bgServiceManager.init();
   await dotenv.load(fileName: KeyConstants.env);
@@ -44,6 +46,7 @@ void main() async {
             dio: Dio(),
             uuid: Uuid(),
             bg: bgServiceManager,
+            onDeferredSyncRequested: TransferWorkScheduler.scheduleDeferredSync,
           ),
         ),
       ],

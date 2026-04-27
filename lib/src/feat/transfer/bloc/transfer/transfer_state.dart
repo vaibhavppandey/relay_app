@@ -34,7 +34,14 @@ final class TransferInProgress extends TransferState {
   List<Object?> get props => [pct, isDownload, activeId];
 }
 
-final class TransferSuccess extends TransferState {}
+final class TransferSuccess extends TransferState {
+  const TransferSuccess({required this.isDownload});
+
+  final bool isDownload;
+
+  @override
+  List<Object?> get props => [isDownload];
+}
 
 final class TransferFailure extends TransferState {
   const TransferFailure(this.msg);

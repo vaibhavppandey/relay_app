@@ -71,7 +71,7 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
     }
 
     if (!hasError) {
-      emit(TransferSuccess());
+      emit(const TransferSuccess(isDownload: false));
     }
   }
 
@@ -164,7 +164,7 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
     }
 
     if (!hasError) {
-      emit(TransferSuccess());
+      emit(const TransferSuccess(isDownload: false));
     }
   }
 
@@ -188,7 +188,7 @@ class TransferBloc extends Bloc<TransferEvent, TransferState> {
       );
       await RecoveryQueue.removeDownload(event.t.id);
       _activeDownloadId = null;
-      emit(TransferSuccess());
+      emit(const TransferSuccess(isDownload: true));
     } catch (err) {
       if (err is DioException &&
           (err.type == DioExceptionType.cancel || CancelToken.isCancel(err))) {

@@ -7,6 +7,8 @@ import 'package:nsd/nsd.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:relay_app/pigeons/generated/media_saver.g.dart';
 
+enum NearbyEvent { fileReceived }
+
 class NearbyRepository {
   static const _serviceType = '_relay._tcp';
   static const _headerDelimiter = 10; // \n
@@ -21,6 +23,9 @@ class NearbyRepository {
   final MediaSaverApi _native = MediaSaverApi();
   void Function()? _listener;
   ServiceListener? _serviceListener;
+
+  final _eventCtrl = StreamController<NearbyEvent>.broadcast();
+  Stream<NearbyEvent> get events => _eventCtrl.stream;
 
   Future<void> startBroadcasting(String myCode) async {
     if (_server != null) {
@@ -275,6 +280,7 @@ class NearbyRepository {
               return;
             }
             await _sendAck(sock, 'OK');
+            _eventCtrl.add(NearbyEvent.fileReceived);
             done = true;
             return;
           }
@@ -327,6 +333,7 @@ class NearbyRepository {
           }
 
           await _sendAck(sock, 'OK');
+          _eventCtrl.add(NearbyEvent.fileReceived);
           done = true;
           return;
         }

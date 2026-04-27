@@ -15,6 +15,11 @@ class BgServiceManager {
   Future<void> init() async {
     const init = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      ),
     );
     await _n.initialize(settings: init);
 
@@ -28,22 +33,32 @@ class BgServiceManager {
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >();
+    await and?.requestNotificationsPermission();
     await and?.createNotificationChannel(ch);
+
+    final ios = _n
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
+    await ios?.requestPermissions(alert: true, badge: true, sound: true);
 
     await _s.configure(
       androidConfiguration: AndroidConfiguration(
         onStart: onStart,
-        isForegroundMode: false,
+        isForegroundMode: true,
         autoStart: false,
         notificationChannelId: 'transfer_channel',
+        initialNotificationTitle: 'Relay transfer',
+        initialNotificationContent: 'Preparing transfer',
+        foregroundServiceNotificationId: 888,
       ),
       iosConfiguration: IosConfiguration(),
     );
   }
 
-  void startTransfer(String name) {
-    _s.startService();
-    _n.show(
+  Future<void> startTransfer(String name) async {
+    await _s.startService();
+    await _n.show(
       id: 888,
       title: 'Sending $name',
       body: 'Transfer in progress',
@@ -60,8 +75,8 @@ class BgServiceManager {
     );
   }
 
-  void stopTransfer() {
+  Future<void> stopTransfer() async {
     _s.invoke('stopService');
-    _n.cancel(id: 888);
+    await _n.cancel(id: 888);
   }
 }

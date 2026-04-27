@@ -11,6 +11,10 @@ final class NearbyInitial extends NearbyState {
   const NearbyInitial();
 }
 
+final class NearbySearching extends NearbyState {
+  const NearbySearching();
+}
+
 final class NearbyScanning extends NearbyState {
   const NearbyScanning(this.devices);
 

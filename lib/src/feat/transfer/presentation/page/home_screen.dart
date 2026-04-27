@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final IncomingBloc _incomingBloc;
   late final TransferBloc _transferBloc;
   late final NearbyRepository _nearbyRepository;
+  StreamSubscription? _nearbyEventSub;
 
   @override
   void initState() {
@@ -40,6 +41,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (widget.myCode.isNotEmpty) {
       unawaited(_nearbyRepository.startBroadcasting(widget.myCode));
     }
+
+    _nearbyEventSub = _nearbyRepository.events.listen((event) {
+      if (event == NearbyEvent.fileReceived) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('file downloaded successfully')),
+        );
+      }
+    });
   }
 
   @override
@@ -53,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     unawaited(_nearbyRepository.stopDiscoveryScan());
     unawaited(_nearbyRepository.stopBroadcasting());
+    _nearbyEventSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -145,9 +156,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 }
 
                 if (state is TransferSuccess) {
+                  final msg = state.isDownload
+                      ? 'file downloaded successfully'
+                      : 'file transferred successfully';
                   ScaffoldMessenger.of(
                     context,
-                  ).showSnackBar(const SnackBar(content: Text('Success')));
+                  ).showSnackBar(SnackBar(content: Text(msg)));
                   _transferBloc.add(const TransferReset());
                 }
               },

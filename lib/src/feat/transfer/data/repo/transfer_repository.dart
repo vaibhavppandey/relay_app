@@ -17,16 +17,19 @@ class TransferRepository {
     required SupabaseClient supabase,
     required Dio dio,
     required Uuid uuid,
-    required BgServiceManager bg,
+    BgServiceManager? bg,
+    Future<void> Function()? onDeferredSyncRequested,
   }) : _supabase = supabase,
        _dio = dio,
        _uuid = uuid,
-       _bg = bg;
+       _bg = bg,
+       _onDeferredSyncRequested = onDeferredSyncRequested;
 
   final SupabaseClient _supabase;
   final Dio _dio;
   final Uuid _uuid;
-  final BgServiceManager _bg;
+  final BgServiceManager? _bg;
+  final Future<void> Function()? _onDeferredSyncRequested;
   final MediaSaverApi _native = MediaSaverApi();
   final Set<String> _done = {};
   static const Duration _retryPollInterval = Duration(seconds: 2);
@@ -37,6 +40,7 @@ class TransferRepository {
     String recipientCode, {
     CancelToken? cancelToken,
     void Function(double)? onProgress,
+    bool waitForNetwork = true,
   }) async {
     final fileSize = await file.length();
     final fileName = file.path.split('/').last;
@@ -47,8 +51,9 @@ class TransferRepository {
         throw const UploadFailedException('File exceeds 50MB limit.');
       }
 
-      _bg.startTransfer(fileName);
+      await _bg?.startTransfer(fileName);
       await RecoveryQueue.addTransfer(file.path, recipientCode);
+      unawaited(_onDeferredSyncRequested?.call());
 
       final recipientUser = await _withNetworkRetry(
         () => _supabase
@@ -57,6 +62,7 @@ class TransferRepository {
             .eq('short_code', recipientCode)
             .maybeSingle(),
         cancelToken: cancelToken,
+        waitForNetwork: waitForNetwork,
       );
 
       if (recipientUser == null) {
@@ -88,6 +94,7 @@ class TransferRepository {
           'expires_at': expiresAt.toIso8601String(),
         }),
         cancelToken: cancelToken,
+        waitForNetwork: waitForNetwork,
       );
 
       await _withNetworkRetry(
@@ -96,49 +103,54 @@ class TransferRepository {
             .update({'status': 'transferring'})
             .eq('id', transferId!),
         cancelToken: cancelToken,
+        waitForNetwork: waitForNetwork,
       );
 
       var lastProgressPercent = -1;
 
-      await _withNetworkRetry(() async {
-        final uploadUrl = await _supabase.storage
-            .from('media')
-            .createSignedUploadUrl(storagePath);
-        await _dio.put(
-          uploadUrl.signedUrl,
-          data: file.openRead(),
-          cancelToken: cancelToken,
-          options: Options(
-            headers: {
-              'content-type': 'application/octet-stream',
-              'content-length': fileSize.toString(),
+      await _withNetworkRetry(
+        () async {
+          final uploadUrl = await _supabase.storage
+              .from('media')
+              .createSignedUploadUrl(storagePath);
+          await _dio.put(
+            uploadUrl.signedUrl,
+            data: file.openRead(),
+            cancelToken: cancelToken,
+            options: Options(
+              headers: {
+                'content-type': 'application/octet-stream',
+                'content-length': fileSize.toString(),
+              },
+              responseType: ResponseType.plain,
+            ),
+            onSendProgress: (sentBytes, totalBytes) {
+              if (totalBytes > 0 && onProgress != null) {
+                onProgress(sentBytes / totalBytes);
+              }
+              if (totalBytes <= 0) return;
+
+              final progressPercent = ((sentBytes / totalBytes) * 100).floor();
+              if (progressPercent == lastProgressPercent ||
+                  (progressPercent - lastProgressPercent) < 5 &&
+                      sentBytes != totalBytes) {
+                return;
+              }
+
+              lastProgressPercent = progressPercent;
+              unawaited(
+                _supabase
+                    .from('transfers')
+                    .update({'progress_bytes': sentBytes})
+                    .eq('id', transferId!)
+                    .catchError((_) {}),
+              );
             },
-            responseType: ResponseType.plain,
-          ),
-          onSendProgress: (sentBytes, totalBytes) {
-            if (totalBytes > 0 && onProgress != null) {
-              onProgress(sentBytes / totalBytes);
-            }
-            if (totalBytes <= 0) return;
-
-            final progressPercent = ((sentBytes / totalBytes) * 100).floor();
-            if (progressPercent == lastProgressPercent ||
-                (progressPercent - lastProgressPercent) < 5 &&
-                    sentBytes != totalBytes) {
-              return;
-            }
-
-            lastProgressPercent = progressPercent;
-            unawaited(
-              _supabase
-                  .from('transfers')
-                  .update({'progress_bytes': sentBytes})
-                  .eq('id', transferId!)
-                  .catchError((_) {}),
-            );
-          },
-        );
-      }, cancelToken: cancelToken);
+          );
+        },
+        cancelToken: cancelToken,
+        waitForNetwork: waitForNetwork,
+      );
 
       await _withNetworkRetry(
         () => _supabase
@@ -146,23 +158,32 @@ class TransferRepository {
             .update({'status': 'completed', 'progress_bytes': fileSize})
             .eq('id', transferId!),
         cancelToken: cancelToken,
+        waitForNetwork: waitForNetwork,
       );
 
       await RecoveryQueue.removeTransfer(file.path);
-      _bg.stopTransfer();
+      await _bg?.stopTransfer();
     } catch (error) {
-      _bg.stopTransfer();
+      await _bg?.stopTransfer();
       if (_isCancelledError(error)) {
         rethrow;
       }
 
-      if (transferId != null && !_isRetryableNetworkError(error)) {
+      final retryable = _isRetryableNetworkError(error);
+
+      if (transferId != null && !retryable) {
         try {
           await _supabase
               .from('transfers')
               .update({'status': 'failed'})
               .eq('id', transferId);
         } catch (_) {}
+      }
+
+      if (retryable) {
+        unawaited(_onDeferredSyncRequested?.call());
+      } else {
+        await RecoveryQueue.removeTransfer(file.path);
       }
 
       throw UploadFailedException(error.toString());
@@ -172,6 +193,7 @@ class TransferRepository {
   Future<T> _withNetworkRetry<T>(
     Future<T> Function() action, {
     CancelToken? cancelToken,
+    bool waitForNetwork = true,
   }) async {
     while (true) {
       _throwIfCancelled(cancelToken);
@@ -182,6 +204,10 @@ class TransferRepository {
           rethrow;
         }
         if (!_isRetryableNetworkError(error)) {
+          rethrow;
+        }
+
+        if (!waitForNetwork) {
           rethrow;
         }
 
